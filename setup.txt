@@ -2,13 +2,13 @@
 # s is used for low-fidelity model
 
 lower_world = [0; 0]
-upper_world = [8; 8] 
+upper_world = [8; 10] 
 
 x0 = [4; 0.5; 3*pi/4]
 xgoal = [4; 7.5]
 
 s0 = [4; 0.5]
-sgoal = [4; 7.5]
+sgoal = [4; 9]
 
 lower_obs1 = [1;5]
 upper_obs1 = [3;7]
@@ -18,5 +18,5 @@ upper_obs2 = [6;7]
 
 objective: \sum_t ||x(t) - xgoal||^2 + ||u(t)||^2
 constraints: 0 <= x(1) <= 8
-             0 <= x(2) <= 8
+             0 <= x(2) <= 10
              0 <= x(3) <= 2*pi
