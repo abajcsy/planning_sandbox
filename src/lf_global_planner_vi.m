@@ -64,9 +64,9 @@ function V = runIteration(V, gamma)
         end
     end
     % == debugging == %
-    plotWorld(V, xgoal);
-    drawnow;
-    pause(0.5);
+    %plotWorld(V, xgoal);
+    %drawnow;
+    %pause(0.5);
     % == debugging == %
 end
 
@@ -145,7 +145,8 @@ function [rnext,cnext,illegal] = transition(r, c, a)
     end
 end
 
-function plotWorld(world,xgoal)
+function plotWorld(world)
+    global xgoal
     clf
     hold on
     % Plot values of gridworld
