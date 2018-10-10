@@ -1,9 +1,12 @@
 %% Value-iteration with low-fidelity model.
 function lf_global_planner_vi()
-    global actions gridW gridH xgoal
+    global actions gridW gridH xgoal INF
 
     % Goal location
     xgoal = [4; 9];
+    
+    % Definition of infinity
+    INF = 100000;
 
     % World bounds and actions. 
     % Lower LH corner of world is (0,0)
@@ -22,11 +25,11 @@ end
 
 %% Value iteration algorithm
 function V = valueIteration(gamma)
-    global gridW gridH xgoal
+    global gridW gridH xgoal INF
     maxIter = 1000;
     eps = 1e-8;
     % Important to initialize V with -inf everywhere but goal
-    V = ones(gridH, gridW)*(-Inf);
+    V = ones(gridH, gridW)*(-INF)
     V(xgoal(2),xgoal(1)) = 0.0;
     for i=1:maxIter
         prevV = V;
@@ -69,14 +72,14 @@ end
 
 %% Reward function
 function re = reward(r,c,a)
-    global xgoal
+    global xgoal INF
     inObs = (r == 5 && c == 2) || (r == 6 && c == 2) || (r >=4 && r <= 7 && c >= 3 && c <= 5);
     if r == xgoal(2) && c == xgoal(1)
         % if you're at the goal, no penalty
         re = 0.0;
     elseif inObs
         % penalize being inside obs with -Inf
-        re = -Inf;
+        re = -INF;
     else
         % penalize all actions -1 (bc up,down,left,right)
         re = -1;
@@ -85,16 +88,16 @@ end
 
 %% Initializes rewards on gridworld
 function reward = initializeRewards()
-    global gridH gridW xgoal
+    global gridH gridW xgoal INF
     reward = zeros(gridH, gridW);
     % Set goal reward
     reward(xgoal(2),xgoal(1)) = 0.0;
     % Set obstacle penalty
-    reward(5,2) = -Inf;
-    reward(6,2) = -Inf; 
+    reward(5,2) = -INF; 
+    reward(6,2) = -INF; 
     for i=4:7
         for j=3:5
-            reward(i,j) = -Inf;
+            reward(i,j) = -100000;%-Inf;
         end
     end
 end
