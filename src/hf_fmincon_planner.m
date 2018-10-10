@@ -8,8 +8,8 @@
 %      z = [x0; x1; x2; ...; xT; u0; u1; ... ; uT-1]
 % so there are T+1 planned states, and T planned controls.
 
-function [xopt, uopt] = hf_fmincon_planner(x0, planT, planDt)
-global nx nu T dt xgoal obsType
+function [xopt, uopt] = hf_fmincon_planner(x0, planT, optV, planDt, lfWidth, lfHeight)
+global nx nu T dt xgoal obsType V lfW lfH
 %clf
 
 % State/control dim 
@@ -20,18 +20,25 @@ nu = 2;
 T = planT;
 dt = planDt;
 
+% Value function
+V = optV;
+
 % Goal location
 xgoal = [4; 9; pi/2]; 
+
+% Store low fidelity grid dim for conversion
+lfW = lfWidth;
+lfH = lfHeight;
 
 % Obstacle type (circle or square or none)
 obsType = 'circle';
 
 % Initial trajectory
 z0 = zeros(nx*(T+1) + nu*T, 1);
-for t=0:T
-    z0(nx*t+1:nx*t+nx) = linInterp(x0, xgoal, t);
+%for t=0:T
+    %z0(nx*t+1:nx*t+nx) = linInterp(x0, xgoal, t);
     %z0(nx*t+1:nx*t+nx) = segmentInterp(x0, xgoal, t);
-end
+%end
 
 % Plot initial trajectory
 init = 1;
@@ -60,7 +67,7 @@ end
 
 %% Cost function (of entire optimization variable)
 function c = cost(z)
-    global nx nu T xgoal 
+    global nx nu T xgoal V
 
     c = 0.0;
     xweight = 10.0;
@@ -75,12 +82,37 @@ function c = cost(z)
         %c = c + uweight*norm(ut)^2;
     end
     
-    % Terminal cost
-    %xend = z(nx*T+1:nx*T+(nx-1));
-    %[~, endNodeVal] = lf_global_planner_astar(xend);
-    %c = c + xweight*endNodeVal;
-    c = c + xweight*norm(z(nx*T+1:nx*T+nx) - xgoal)^2;
+    % (Value function) Terminal cost
+    xend = z(nx*T+1:nx*T+nx);
+    [row,col] = hfToLfState(xend);
+    endNodeVal = abs(V(row,col));
+    c = c + xweight*endNodeVal;
+    
+    % (Typical) Terminal cost
+    %c = c + xweight*norm(z(nx*T+1:nx*T+nx) - xgoal)^2;
 end
+
+%% Convert state from HF model to LF state-space.
+function [r,c] = hfToLfState(hfstate)
+    global lfH lfW
+    
+    % TODO: THESE ARE HARD CODED.
+    hfW = 8.0;
+    hfH = 10.0;
+    
+    % Compute resultion (real meters)/(sim dim)
+    resCol = hfW/lfW;
+    resRow = hfH/lfH;
+    
+    % Take only the x,y entries and convert with resolution
+    r = ceil(hfstate(2)/resRow);
+    c = ceil(hfstate(1)/resCol);
+    
+    % Make sure (r,c) are within world bounds
+    r = min(lfH,max(1,r));
+    c = min(lfW,max(1,c));
+end
+
 
 %% Constraints Setup
 function [c,ceq] = constraintFun(z)

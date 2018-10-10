@@ -1,18 +1,24 @@
 %% Value-iteration with low-fidelity model.
-function lf_global_planner_vi()
-    global actions gridW gridH xgoal INF
+function optV = lf_global_planner_vi(goal, width, height)
+    global actions gridW gridH xgoal INF 
 
     % Goal location
-    xgoal = [4; 9];
+    xgoal = goal;
+    %xgoal = [4; 9];
+    %xgoal = [8; 18];
     
     % Definition of infinity
     INF = 100000;
 
-    % World bounds and actions. 
-    % Lower LH corner of world is (0,0)
+    % World bounds. 
+    % Lower LH corner of world is (1,1)
     % Upper RH corner of world is (8,10)
-    gridW = 8; 
-    gridH = 10; 
+    gridW = width; %8; 
+    gridH = height; %10; 
+    %gridW = 16;
+    %gridH = 20;
+    
+    % Action list
     actions = {'up', 'down', 'left', 'right'};
     
     % Compute value
@@ -29,7 +35,7 @@ function V = valueIteration(gamma)
     maxIter = 1000;
     eps = 1e-8;
     % Important to initialize V with -inf everywhere but goal
-    V = ones(gridH, gridW)*(-INF)
+    V = ones(gridH, gridW)*(-INF);
     V(xgoal(2),xgoal(1)) = 0.0;
     for i=1:maxIter
         prevV = V;
@@ -48,7 +54,7 @@ end
 %% Evaluate Policy by updating the value of every state by diffusing the 
 % rewards backwards through the dynamics of the world and current policy
 function V = runIteration(V, gamma)
-    global gridW gridH xgoal
+    global gridW gridH 
     for r=1:gridH
         for c=1:gridW
             allowedA = allowedActions(r, c);
@@ -63,26 +69,42 @@ function V = runIteration(V, gamma)
             V(r,c) = max(qsa);
         end
     end
-    % == debugging == %
-    %plotWorld(V, xgoal);
-    %drawnow;
-    %pause(0.5);
-    % == debugging == %
 end
 
 %% Reward function
 function re = reward(r,c,a)
-    global xgoal INF
-    inObs = (r == 5 && c == 2) || (r == 6 && c == 2) || (r >=4 && r <= 7 && c >= 3 && c <= 5);
+    global xgoal INF gridH gridW
+    
+    % specify square obstacles
+    lowerO1 = [gridH/3, gridW/3];
+    upperO1 = [2*gridH/3+1, 2*gridW/3]; %2*gridW/3+2];
+    
+    obs1height = floor(upperO1(1) - lowerO1(1));
+    pad = 2*floor(obs1height/2);
+    
+    lowerO2 = [gridH/3+1, gridW/3-1]; %gridW/3-4];
+    upperO2 = [gridH/3+pad-1, gridW/3];
+
+    inObs1 = insideObs(r,c,lowerO1,upperO1); %(r == 5 && c == 2) || (r == 6 && c == 2) || (r >=4 && r <= 7 && c >= 3 && c <= 5);
+    inObs2 = insideObs(r,c,lowerO2,upperO2);
     if r == xgoal(2) && c == xgoal(1)
         % if you're at the goal, no penalty
         re = 0.0;
-    elseif inObs
+    elseif inObs1 || inObs2
         % penalize being inside obs with -Inf
         re = -INF;
     else
         % penalize all actions -1 (bc up,down,left,right)
         re = -1;
+    end
+end
+
+%% Tells you if (r,c) is inside obstacle
+function inObs = insideObs(r,c,lower,upper)
+    if r >= lower(1) && r <= upper(1) && c >= lower(2) && c <= upper(2)
+        inObs = 1;
+    else
+        inObs = 0;
     end
 end
 
@@ -145,8 +167,9 @@ function [rnext,cnext,illegal] = transition(r, c, a)
     end
 end
 
+%% Plotting
 function plotWorld(world)
-    global xgoal
+    global xgoal gridH gridW
     clf
     hold on
     % Plot values of gridworld
@@ -159,75 +182,9 @@ function plotWorld(world)
     plot(xgoal(1), xgoal(2), 'ro', 'MarkerSize', 10);
 
     % Plot obstacles
-    viscircles([2.5 5.5], 0.8, 'Color', 'k');
-    viscircles([3 5.5], 1, 'Color', 'k');
-    viscircles([4 5.5], 1.5, 'Color', 'k');
+    %viscircles([2.5 5.5], 0.8, 'Color', 'k');
+    %viscircles([3 5.5], 1, 'Color', 'k');
+    %viscircles([4 5.5], 1.5, 'Color', 'k');
 
-    axis([0 9 0 11]);
+    axis([0 gridW 0 gridH]);
 end
-
-%% Policy update
-%  Pi'(s) = argmax_a Q(s,a)
-% function P = updatePolicy(reward, P, V, gamma)
-% 	global actions gridW gridH
-% 	for r=1:gridH
-%         for c=1:gridW
-%             vmax = 0.0;
-%             nmax = 0;
-%             vs = [];
-%             allowedA = allowedActions(r, c);
-%             [~,numAllowed] = size(allowedA);
-%             i = 0;
-%             % compute value of taking each allowed action
-%             for idx=1:numAllowed
-%                 a = allowedA(idx);
-%                 [rnext, cnext, ~] = transition(r,c,a);
-%                 % get value of taking action a
-%                 v = reward(r,c) + gamma*V(rnext,cnext);
-%                 % store value to maintain max
-%                 vs = [vs, v];
-%                 if i == 0 || v > vmax
-%                     vmax = v; nmax = 1;
-%                 elseif v == vmax
-%                     nmax = nmax+1;
-%                 end
-%                 i = i+1;
-%             end
-%             i = 0;
-%             % update policy across all actions 
-%             for idx=1:numAllowed
-%                 a = allowedA(idx);
-%                 aidx = find(strcmp(actions,a));
-%                 if vs(idx) == vmax
-%                     P(r,c,aidx) = 1.0/nmax;
-%                 else
-%                     P(r,c,aidx) = 0.0;
-%                 end
-%                 i = i +1;
-%             end
-%         end
-%     end
-% end
-
-%% Initializes P
-% function P = initializeP()
-%     global actions gridW gridH
-%     [~,numA] = size(actions);
-%     P = zeros(gridH, gridW, numA);
-%     for r=1:gridH
-%         for c=1:gridW
-%             allowedA = allowedActions(r, c);
-%             [~,numAllowed] = size(allowedA);
-%             [~,numA] = size(actions);
-%             for aidx=1:numA
-%                 a = actions{aidx};
-%                 [~,~,illegal] = transition(r,c,a);
-%                 if ~illegal
-%                     P(r,c,aidx) = 1.0/numAllowed;
-%                 else
-%                     P(r,c,aidx) = 0.0;
-%                 end
-%             end
-%         end
-%     end
-% end
