@@ -8,9 +8,9 @@
 %      z = [x0; x1; x2; ...; xT; u0; u1; ... ; uT-1]
 % so there are T+1 planned states, and T planned controls.
 
-function [xopt, uopt] = hf_planner(x0, planT, planDt)
+function [xopt, uopt] = hf_fmincon_planner(x0, planT, planDt)
 global nx nu T dt xgoal obsType
-clf
+%clf
 
 % State/control dim 
 nx = 3;
@@ -24,7 +24,7 @@ dt = planDt;
 xgoal = [4; 9; pi/2]; 
 
 % Obstacle type (circle or square or none)
-obsType = 'square';
+obsType = 'circle';
 
 % Initial trajectory
 z0 = zeros(nx*(T+1) + nu*T, 1);
@@ -60,7 +60,7 @@ end
 
 %% Cost function (of entire optimization variable)
 function c = cost(z)
-    global nx nu T xgoal
+    global nx nu T xgoal 
 
     c = 0.0;
     xweight = 10.0;
@@ -76,6 +76,9 @@ function c = cost(z)
     end
     
     % Terminal cost
+    %xend = z(nx*T+1:nx*T+(nx-1));
+    %[~, endNodeVal] = lf_global_planner_astar(xend);
+    %c = c + xweight*endNodeVal;
     c = c + xweight*norm(z(nx*T+1:nx*T+nx) - xgoal)^2;
 end
 
@@ -108,7 +111,7 @@ function [c,ceq] = constraintFun(z)
         xt = z(nx*t+1:nx*t+nx);        
         ut = z(nx*(T+1) + nu*t + 1:nx*(T+1) + nu*t + nu);
         xt1 = z(nx*(t+1)+1:nx*(t+1)+nx);
-        ceq(nx*t+1:nx*t+nx) = xt1 - (xt + dt*dyn(xt,ut)); 
+        ceq(nx*t+1:nx*t+nx) = xt1 - (xt + dt*hf_dyn(xt,ut)); 
     end
 end
 
@@ -228,30 +231,46 @@ function c = squareCons(xstate, ystate)
     cy2 = obs2(2) + h2/2;
     
     % Compute distance to square 1
-    dx1 = max(abs(xstate - cx1) - w1/2,0);
-    dy1 = max(abs(ystate - cy1) - h1/2,0);
-    c1 = -(dx1^2 + dy1^2);
+%     dx1 = max(abs(xstate - cx1) - w1/2,0);
+%     dy1 = max(abs(ystate - cy1) - h1/2,0);
+%     c1 = -(dx1^2 + dy1^2);
+%     
+%     % Compute distance to square 2
+%     dx2 = max(abs(xstate - cx2) - w2/2, 0);
+%     dy2 = max(abs(ystate - cy2) - h2/2, 0);
+%     c2 = -(dx2^2 + dy2^2);
     
-    % Compute distance to square 2
-    dx2 = max(abs(xstate - cx2) - w2/2, 0);
-    dy2 = max(abs(ystate - cy2) - h2/2, 0);
-    c2 = -(dx2^2 + dy2^2);
-    
-    c = max(c1,c2);
+%     distx1 = abs(xstate - cx1) - w1/2;
+%     disty1 = abs(ystate - cy1) - h1/2;
+%     if distx1 > 0 && distx1 > 0
+%         c1 = -max(distx1,disty1);
+%     else
+%         c1 = -min(distx1,disty1);
+%     end
+%     
+%     distx2 = abs(xstate - cx2) - w2/2;
+%     disty2 = abs(ystate - cy2) - h2/2;
+%     if distx2 > 0 && distx2 > 0
+%         c2 = -max(distx2,disty2);
+%     else
+%         c2 = -min(distx2,disty2);
+%     end
+%     
+%     c = max(c1,c2);
     
     % Constrain if inside obstacle 1
-%     c1 = 0;
-%     if xstate > obs1(1) && xstate < obs1(3) && ystate > obs1(2) && ystate < obs1(4)
-%         c1 = -exp(-(sqrt((xstate - obs1(1))^2 + (ystate - obs1(2))^2) - obs1(3)));
-%         %c(nx*t+1:nx*t+nx) = 1;
-%     end
-%     c2 = 0;
-%     % Constrain if inside obstacle 2
-%     if xstate > obs2(1) && xstate < obs2(3) && ystate > obs2(2) && ystate < obs2(4)
-%         c2 = -exp(-(sqrt((xstate - obs2(1))^2 + (ystate - obs2(2))^2) - obs2(3)));
-%         %c(nx*t+1:nx*t+nx) = 1;
-%     end
-%     c = max(c1,c2);
+    c1 = 0;
+    if xstate > obs1(1) && xstate < obs1(3) && ystate > obs1(2) && ystate < obs1(4)
+        c1 = exp(-((xstate - cx1)^2 + (ystate - cy1)^2)/10);
+        %c(nx*t+1:nx*t+nx) = 1;
+    end
+    c2 = 0;
+    % Constrain if inside obstacle 2
+    if xstate > obs2(1) && xstate < obs2(3) && ystate > obs2(2) && ystate < obs2(4)
+        c2 = exp(-((xstate - cx2)^2 + (ystate - cx2)^2)/10);
+        %c(nx*t+1:nx*t+nx) = 1;
+    end
+    c = max(c1,c2);
 end
 
 %% Circle obstacle constraints

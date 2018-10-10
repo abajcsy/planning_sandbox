@@ -1,20 +1,25 @@
 %% Simulates MPC planning
 
 simT = 45;
-planT = 7;
+hf_planT = 7;
+lf_planT = 20;
 dt = 0.2;
-%x0 = [4.0; 0.5; 3*pi/4];
+x0_lf = [4.0; 0.5];
+x0_hf = [4.0; 0.5; 3*pi/4];
 %x0 = [4.0; 0.5; pi/2];
-x0 = [4.0; 0.5; 0];
+%x0 = [4.0; 0.5; 0];
 
 nx = 3;
 nu = 2;
 
-clf
 hold on
+x0 = x0_hf;
 for t=0:simT
-    [xopt, uopt] = hf_planner(x0, planT, dt);
-    dx = dyn(xopt(1:nx),uopt(1:nu));
+    clf
+    [hf_xopt, hf_uopt] = hf_fmincon_planner(x0, hf_planT, dt);
+    %[lf_xopt, lf_uopt] = lf_fmincon_planner(hf_xopt(end-2:end-1), lf_planT, dt);
+    %dx = lf_dyn(xopt(1:nx),uopt(1:nu));
+    dx = hf_dyn(hf_xopt(1:nx),hf_uopt(1:nu));
     x0 = x0 + dt*dx;
     
     % plot the current state after application of control
