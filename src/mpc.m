@@ -3,16 +3,19 @@
 % Time parameters
 simT = 50;
 hfPlanT = 7;
-lfPlanT = 20;
+lfPlanT = 7;
 dt = 0.2;
 
 % Initial conditions
-hfx0 = [4.0; 0.5; pi/2]; %3*pi/4];
-%lfx0 = [4.0; 0.5];
+hfx0 = [4.0; 0.5; 0]; %3*pi/4];
+lfx0 = [4.0; 0.5];
 
 % State dimensions
-nx = 3;
-nu = 2;
+lfnx = 2; 
+lfnu = 2;
+
+hfnx = 3;
+hfnu = 2;
 
 % World dimensions
 lfWidth = 8; %16;
@@ -26,7 +29,7 @@ lfgoal = [4; 9]; %[8; 18];
 optV = lf_global_planner_vi(lfgoal, lfWidth, lfHeight);
 
 % Set the initial condition for mpc
-x0 = hfx0;
+x0 = lfx0; %hfx0;
 for t=0:simT
     clf
     hold on
@@ -35,17 +38,17 @@ for t=0:simT
     imagesc(optV, clims);
     colorbar
     
-    [hf_xopt, hf_uopt] = hf_fmincon_planner(x0, hfPlanT, optV, dt, lfWidth, lfHeight);
-    %[lf_xopt, lf_uopt] = lf_fmincon_planner(hf_xopt(end-2:end-1), lfPlanT, dt);
-    %dx = lf_dyn(xopt(1:nx),uopt(1:nu));
-    dx = hf_dyn(hf_xopt(1:nx),hf_uopt(1:nu));
+    %[hf_xopt, hf_uopt] = hf_fmincon_planner(x0, hfPlanT, optV, dt, lfWidth, lfHeight);
+    [lf_xopt, lf_uopt] = lf_fmincon_planner(hf_xopt(end-2:end-1), lfPlanT, dt);
+    dx = lf_dyn(lf_xopt(1:lfnx),lf_uopt(1:lfnu));
+    %dx = hf_dyn(hf_xopt(1:hfnx),hf_uopt(1:hfnu));
     x0 = x0 + dt*dx;
         
     % plot the current state after application of control
     %[r,c] = hfToLfState(x0, lfWidth, lfHeight);
     %plot(c, r, 'ko','MarkerSize', 5, 'MarkerEdgeColor', 'k', 'MarkerFaceColor', 'k');
     plot(x0(1), x0(2), 'ko','MarkerSize', 5, 'MarkerEdgeColor', 'k', 'MarkerFaceColor', 'k');
-    axis([0 8 0 10]);
+    %axis([0 8 0 10]);
     drawnow   
 end
 
