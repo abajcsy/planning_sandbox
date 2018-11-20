@@ -1,4 +1,4 @@
-classdef Environment
+classdef Environment < handle
     %ENVIRONMENT Represents (x,y) planar environment.
     
     properties
@@ -10,18 +10,26 @@ classdef Environment
     end
     
     methods
+        %% Constructor.
         function obj = Environment(lowEnv, upEnv, lowObs, upObs)
-            %ENVIRONMENT Construct an environment object.
             obj.lowEnv = lowEnv;
             obj.upEnv = upEnv;
             obj.lowObs = lowObs;
             obj.upObs = upObs;
         end
         
-        function outputArg = method1(obj,inputArg)
-            %METHOD1 Summary of this method goes here
-            %   Detailed explanation goes here
-            outputArg = obj.Property1 + inputArg;
+        %% Plots the environment with the obstacle.
+        % Return: h -- figure handle
+        function h = plotEnvironment(obj)
+            % draw *actual* obstacle
+            width = obj.upObs(1) - obj.lowObs(1);
+            height = obj.upObs(2) - obj.lowObs(2);
+            obsCoord = [obj.lowObs(1), obj.lowObs(2), width, height];
+            h = rectangle('Position', obsCoord, 'Linewidth', 0.5, 'LineStyle', '--');
+            
+            % setup the figure axes to represent the entire environment
+            xlim([obj.lowEnv(1) obj.upEnv(1)]);
+            ylim([obj.lowEnv(2) obj.upEnv(2)]);
         end
     end
 end
