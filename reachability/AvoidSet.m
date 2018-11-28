@@ -16,6 +16,8 @@ classdef AvoidSet < handle
         reachTube       % Stores the converged backwards reachable tube
         computeTimes    % Stores the computation times
         dCar            % Dynamical system (dubins car)
+        pdDims          % Which dimension is periodic?
+        data0           % Stores initial value function (could be l(x) or old V(0))
         timeDisc        % Discretized time vector          
         schemeData      % Used to specify dyn, grid, etc. for HJIPDE_solve()
         HJIextraArgs    % Specifies extra args to HJIPDE_solve()
@@ -28,11 +30,15 @@ classdef AvoidSet < handle
             obj.gridLow = gridLow;  
             obj.gridUp = gridUp;    
             obj.N = N;      
-            pdDims = 3;      % 3rd dimension is periodic for dubins
+            obj.pdDims = 3;      % 3rd dimension is periodic for dubins
             obj.dt = dt;
-            obj.grid = createGrid(obj.gridLow, obj.gridUp, obj.N, pdDims);
+            obj.grid = createGrid(obj.gridLow, obj.gridUp, obj.N, obj.pdDims);
             obj.reachTube = [];
             obj.computeTimes = [];
+            
+            % Before the problem starts, dont initialize the value
+            % function.
+            obj.data0 = NaN;
             
             % Input bounds for dubins car.
             speed = 1;
@@ -40,7 +46,7 @@ classdef AvoidSet < handle
 
             % Define dynamic system.
             % NOTE: init condition doesn't matter for computation.
-            xinit = [0, 2.5, 0]; 
+            xinit = [2.0, 2.5, 0.0]; 
             obj.dCar = DubinsCar(xinit, wMax, speed);
             
             % Time vector.
@@ -59,29 +65,79 @@ classdef AvoidSet < handle
 
             % Convergence information
             obj.HJIextraArgs.stopConverge = 1;
-            obj.HJIextraArgs.convergeThreshold=.01;
+            obj.HJIextraArgs.convergeThreshold=.06;
         end
         
         %% Computes avoid set. 
         % Inputs:
-        %   lowObsXY [vector] - (x,y) coords of lower left-corner of obstacle
-        %   upObsXY [vector] - (x,y) coords of upper right-hand corner of obstacle
-        function dataOut = computeAvoidSet(obj, lowObsXY, upObsXY)
+        %   lowObsXY [vector]   - (x,y) coords of lower left-corner of obstacle
+        %   upObsXY [vector]    - (x,y) coords of upper right-hand corner of obstacle
+        %   lowKnownXY [vector] - (x,y) coords of lower left compute/known
+        %   env
+        %   upKnownXY [vector]  - (x,y) coords of upper right compute/known
+        %   env
+        %   lowSenseXY [vector] - (x,y) coords of lower left sensing box
+        %   upSenseXY [vector]  - (x,y) coords of upper right sensing box
+        % Outputs:
+        %   dataOut             - infinite-horizon (converged) value function 
+        function dataOut = computeAvoidSet(obj, lowObsXY, upObsXY, ...
+                lowKnownXY, upKnownXY, lowSenseXY, upSenseXY)
             
-            % Construct obstacle set. Function is positive inside the set
-            % and negative outside.
+            % ---------- START CONSTRUCT l(x) ---------- %
+            
+            % Construct cost function for obstacle. 
+            % Function is positive inside the set and negative outside.
             lowObs = [lowObsXY(1);lowObsXY(2);-inf];
             upObs = [upObsXY(1);upObsXY(2);inf];
-            data0 = shapeRectangleByCorners(obj.grid,lowObs,upObs);
+            obsShape = shapeRectangleByCorners(obj.grid,lowObs,upObs);
             
-            % Compute value function
-            % minWith zero gives us a tube instead of a set.
-            minWith = 'zero';
+            % Construct cost function for region outside 'known' environment.
+            % NOTE: need to negate the default shape function to make sure
+            %       free space is assigned (+) and unknown space is (-)
+            lowObs = [lowKnownXY(1);lowKnownXY(2);-inf];
+            upObs = [upKnownXY(1);upKnownXY(2);inf];
+            envShape = -shapeRectangleByCorners(obj.grid,lowObs,upObs);
+            
+            if ~isempty(lowSenseXY) && ~isempty(upSenseXY)
+                % Construct cost function for region outside sensing radius.
+                % NOTE: need to negate the default shape function to make sure
+                %       free space is assigned (+) and unknown space is (-)
+                lowObs = [lowSenseXY(1);lowSenseXY(2);-inf];
+                upObs = [upSenseXY(1);upSenseXY(2);-inf];
+                senseShape = -shapeRectangleByCorners(obj.grid,lowObs,upObs);
+            end
+            
+            % Combine the obstacle and environment cost functions together.
+            costData = shapeUnion(obsShape, envShape);
+            
+            % Combine the unioned obs/env cost with the sensing radius
+            if ~isempty(lowSenseXY) && ~isempty(upSenseXY)
+                lOfX = shapeIntersection(costData, senseShape);
+            else
+                lOfX = costData;
+            end
+            
+            % ------------- CONSTRUCT V(x) ----------- %
+            
+            if isnan(obj.data0)
+                % If we don't have a value function initialized, 
+                % use l(x) as our initial value function.
+                obj.data0 = lOfX;
+                % minWith zero gives us a tube instead of a set.
+                minWith = 'zero';
+            else
+                % Otherwise, use the prior instantiation of the 
+                % value function data0 = Vold, and just set new l(x)
+                obj.HJIextraArgs.targets = lOfX;
+                minWith = 'minVwithL';
+            end
+            
+            % ------------ Compute value function ---------- %
             [dataOut, tau, extraOuts] = ...
-              HJIPDE_solve(data0, obj.timeDisc, obj.schemeData, minWith, obj.HJIextraArgs);
+              HJIPDE_solve(obj.data0, obj.timeDisc, obj.schemeData, minWith, obj.HJIextraArgs);
           
             % Update internal variables.
-            obj.reachTube = dataOut;
+            obj.reachTube = dataOut; % maybe we should store this in data0 again?
             obj.computeTimes = tau;
         end
         
@@ -112,6 +168,21 @@ classdef AvoidSet < handle
             % BELOW zero.
             h = visSetIm(gPlot, -dataPlot, 'k', 0, extraArgs);
             colormap(bone)
+            drawnow   
+        end
+        
+        %% Updates the grid bounds based on given bounds.
+        function updateGridBounds(obj, newGridLow, newGridUp)
+            obj.gridLow(1:2) = newGridLow;  
+            obj.gridUp(1:2) = newGridUp;  
+            
+            % Create new computation grid.
+            gNew = createGrid(obj.gridLow, obj.gridUp, obj.N, obj.pdDims);
+            gOld = obj.grid;
+            
+            % may want to do migrate data into new grid
+            obj.reachTube = migrateGrid(gOld, obj.reachTube, gNew);
+            obj.grid = gNew;
         end
     end
 end
