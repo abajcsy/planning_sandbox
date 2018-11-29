@@ -1,28 +1,30 @@
 %% Run the exploration & planning procedure. 
 % TODO:
-% - assume sensing radius is square + obstacles are square -- compute 
+% - [done] assume sensing radius is square + obstacles are square -- compute 
 %   intersection of the two to get new square that becomes a l(x)
-% - put in warm-starting based on updated sensor measurements
+% - [done] put in warm-starting based on updated sensor measurements
+% - try to plot different perspectives to verify the computation (?)
+% - plot the final V(x) that we got after execution is done
+% - compute solution IF YOU KNEW ENTIRE ENVIRONMENT *beforehand*
 % - implement MPC-style planning with the value function being queried for
 %   collision-checking
 % - look at Kene's temporal differencing work
 % - look at approximate reachability techniques
-% - try to plot different perspectives to verify the computation (?)
 
 % Clear old figure plotting and variables.
 clf 
 clear
 
 % Setup environment bounds.
-lowEnv = [0,0];
-upEnv = [10,7];
+lowEnv = [0;0];
+upEnv = [10;7];
 
 % Setup obstacle.
-lowObs = [4,1];
-upObs = [7,4];
+lowRealObs = [4,1];
+upRealObs = [7,4];
 
 % Setup environment representation.
-env = Environment(lowEnv, upEnv, lowObs, upObs);
+env = Environment(lowEnv, upEnv, lowRealObs, upRealObs);
 
 % Setup lower and upper computation domains and discretization.
 gridLow = [0;0;-pi];
@@ -32,11 +34,13 @@ N = [21;21;21];
 % Timestep for computation and simulation.
 dt = 0.05;
 
-% Setup current known obstacle + known env.
-lowObsXY = [4;1];
-upObsXY = [5;4];
+% Setup current known obstacle list.
+lowObsXY = [[4;1]]; %[[lowRealObs(1);lowRealObs(2)]];
+upObsXY = [[5;4]]; %[[upRealObs(1);upRealObs(2)]]; 
+
+% Setup current known env.
 lowKnownXY = [0.05; 0.05]; 
-upKnownXY = [4.95; 4.95];
+upKnownXY = [4.95; 4.95]; %[9.95;6.95];
 
 % Setup avoid set object and compute first set.
 set = AvoidSet(gridLow, gridUp, N, dt);
@@ -46,7 +50,7 @@ set.computeAvoidSet(lowObsXY, upObsXY, lowKnownXY, upKnownXY, [], []);
 hold on
 
 % Initial condition.
-x = [2.0; 2.5; 0.0];
+x = [2.0; 2.5; pi/2];
 
 % Plot level set corresponding to the initial theta
 convergedSetHandle = set.plotLevelSet(x(3), true);
@@ -91,11 +95,18 @@ for t=1:T
          set.updateGridBounds(lowKnownXY, upKnownXY);
      end
 
-    % (3) check if sensor picked up obstacle or free-space
-    % -------> assume free space rn
-    % (4) update l(x) based on sensor hits
+    % (3) check if sensor picked up obstacle or free-space.
+    [hasIntersection, lowXY, upXY] = env.obstacleIntersection(lowSense, upSense);
+    % if detected an obstacle, add the coordinates to the obstacle list
+    % (where columns represent unique obstacles)
+    if hasIntersection
+        lowObsXY = [lowObsXY, lowXY];
+        upObsXY = [upObsXY, upXY];
+    end
+    
+    % (4) update l(x) based on sensor hits 
     % (5) recompute V'(x) by warm-starting with previous V(x)
-    if isOutside % NOTE: IN GENERAL WE WOULDNT HAVE THIS CHECK HERE.
+    if isOutside || hasIntersection % NOTE: IN GENERAL WE WOULDNT HAVE THIS CHECK HERE.
         set.computeAvoidSet(lowObsXY, upObsXY, lowKnownXY, upKnownXY, lowSense, upSense);
     end
     
@@ -178,13 +189,28 @@ end
 
 %% Returns control to apply to car at a particular time.
 function u = getControl(t)
-    if t >= 1 && t < 50
-        u = 0.8;
-    elseif t >= 50 && t < 90
-        u = -1.0;
-    elseif t >= 90 && t < 180
+    if t >= 1 && t < 20
         u = 0.0;
-    else
+    elseif t >= 20 && t < 40
         u = -1.0;
+    elseif t >= 40 && t < 50
+        u = 1.0;
+    elseif t >=50 && t < 70
+        u = -1.0;
+    else
+        u = 0.0;
     end
+    
+% for init condition: x = [2.0; 2.5; pi/2];
+%     if t >= 1 && t < 40
+%         u = 0.8;
+%     elseif t >= 40 && t < 60
+%         u = -1.0;
+%     elseif t >= 60 && t < 70
+%         u = 1.0;
+%     elseif t >=70 && t < 95
+%         u = -1.0;
+%     else
+%         u = 0.0;
+%     end
 end

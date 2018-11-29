@@ -31,6 +31,31 @@ classdef Environment < handle
             xlim([obj.lowEnv(1) obj.upEnv(1)]);
             ylim([obj.lowEnv(2) obj.upEnv(2)]);
         end
+        
+        %% Computes intersection of obstacle box and sensing box. 
+        % Returns: coordinates of box at the intersection, or NaN's.
+        function [hasInter, lowXY, upXY] = obstacleIntersection(obj,lowSenseXY,upSenseXY)
+            hasInter = false;
+            lowXY = NaN;
+            upXY = NaN;
+            
+            obsWidth = obj.upObs(1) - obj.lowObs(1);
+            obsHeight = obj.upObs(2) - obj.lowObs(2);
+            
+            senseWidth = upSenseXY(1) - lowSenseXY(1);
+            senseHeight = upSenseXY(2) - lowSenseXY(2);
+            
+            if lowSenseXY(1) < obj.lowObs(1) + obsWidth && ...
+               lowSenseXY(1) + senseWidth > obj.lowObs(1) && ...
+               lowSenseXY(2) < obj.lowObs(2) + obsHeight && ...
+               lowSenseXY(2) + senseHeight > obj.lowObs(2)
+                % Determine the coordinates of the intersection rectangle.
+                lowXY = [max(lowSenseXY(1), obj.lowObs(1)); max(lowSenseXY(2), obj.lowObs(2))];
+                upXY = [min(upSenseXY(1), obj.upObs(1)); min(upSenseXY(2), obj.upObs(2))];
+                hasInter = true;
+            end
+            
+        end
     end
 end
 

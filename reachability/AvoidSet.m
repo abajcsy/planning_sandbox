@@ -87,9 +87,24 @@ classdef AvoidSet < handle
             
             % Construct cost function for obstacle. 
             % Function is positive inside the set and negative outside.
-            lowObs = [lowObsXY(1);lowObsXY(2);-inf];
-            upObs = [upObsXY(1);upObsXY(2);inf];
+            [~,numObs] = size(lowObsXY); % get number of obstacles
+            
+            % NOTE: we need at least one obstacle!
+            low = lowObsXY(:,1);
+            up = upObsXY(:,1);
+            lowObs = [low(1);low(2);-inf];
+            upObs = [up(1);up(2);inf];
             obsShape = shapeRectangleByCorners(obj.grid,lowObs,upObs);
+            
+            % Union all other obstacles with the first one.
+            for idx=2:numObs
+                low = lowObsXY(:,idx);
+                up = upObsXY(:,idx);
+                lowObs = [low(1);low(2);-inf];
+                upObs = [up(1);up(2);inf];
+                newObs = shapeRectangleByCorners(obj.grid,lowObs,upObs);
+                obsShape = shapeUnion(obsShape, newObs);
+            end
             
             % Construct cost function for region outside 'known' environment.
             % NOTE: need to negate the default shape function to make sure
@@ -98,13 +113,15 @@ classdef AvoidSet < handle
             upObs = [upKnownXY(1);upKnownXY(2);inf];
             envShape = -shapeRectangleByCorners(obj.grid,lowObs,upObs);
             
+            %obj.plotFuncLevelSet(envShape, pi/2, true, 'm');
+            
             if ~isempty(lowSenseXY) && ~isempty(upSenseXY)
                 % Construct cost function for region outside sensing radius.
                 % NOTE: need to negate the default shape function to make sure
                 %       free space is assigned (+) and unknown space is (-)
-                lowObs = [lowSenseXY(1);lowSenseXY(2);-inf];
-                upObs = [upSenseXY(1);upSenseXY(2);-inf];
-                senseShape = -shapeRectangleByCorners(obj.grid,lowObs,upObs);
+                lowObsSense = [lowSenseXY(1);lowSenseXY(2);-inf];
+                upObsSense = [upSenseXY(1);upSenseXY(2);inf];
+                senseShape = -shapeRectangleByCorners(obj.grid,lowObsSense,upObsSense);
             end
             
             % Combine the obstacle and environment cost functions together.
@@ -112,11 +129,16 @@ classdef AvoidSet < handle
             
             % Combine the unioned obs/env cost with the sensing radius
             if ~isempty(lowSenseXY) && ~isempty(upSenseXY)
+                %obj.plotFuncLevelSet(senseShape, pi/2, true, 'r');
+                %obj.plotFuncLevelSet(costData, pi/2, true, 'g');
                 lOfX = shapeIntersection(costData, senseShape);
             else
                 lOfX = costData;
             end
             
+            % Sanity check: you can plot the cost function l(x).
+            %obj.plotFuncLevelSet(lOfX, pi/2, true, 'b');
+
             % ------------- CONSTRUCT V(x) ----------- %
             
             if isnan(obj.data0)
@@ -137,7 +159,8 @@ classdef AvoidSet < handle
               HJIPDE_solve(obj.data0, obj.timeDisc, obj.schemeData, minWith, obj.HJIextraArgs);
           
             % Update internal variables.
-            obj.reachTube = dataOut; % maybe we should store this in data0 again?
+            obj.data0 = dataOut; % may not neat reachTube anymore
+            %obj.plotFuncLevelSet(obj.data0, pi/2, true, 'y');
             obj.computeTimes = tau;
         end
         
@@ -150,12 +173,12 @@ classdef AvoidSet < handle
         %   plots level set in (x,y) for fixed theta.
         function h = plotLevelSet(obj, theta, plotFinalTime)
             % By default plot final time set.
-            data = obj.reachTube(:,:,:,end);
+            data = obj.data0(:,:,:,end);
             extraArgs.LineWidth = 1.0;
             
             if ~plotFinalTime
                 % If plotting inital set.
-                data = obj.reachTube(:,:,:,1);
+                data = obj.data0(:,:,:,1);
                 extraArgs.LineWidth = 3.0;
             end
             
@@ -171,17 +194,44 @@ classdef AvoidSet < handle
             drawnow   
         end
         
+        %% Plot level set of arbitrary function
+        function h = plotFuncLevelSet(obj, func, theta, plotFinalTime, color)
+            % By default plot final time set.
+            data = func(:,:,:,end);
+            extraArgs.LineWidth = 1.0;
+            
+            if ~plotFinalTime
+                % If plotting inital set.
+                data = func(:,:,:,1);
+                extraArgs.LineWidth = 3.0;
+            end
+            
+            % Grab slice at theta.
+            [gPlot, dataPlot] = proj(obj.grid, data, [0 0 1], theta);
+
+            % Visualize final set.
+            % NOTE: plot -data because by default contourf plots all values
+            % that are ABOVE zero, but inside our obstacle we have values
+            % BELOW zero.
+            h = visSetIm(gPlot, -dataPlot, color, 0, extraArgs);
+            colormap(bone)
+            drawnow   
+        end
+        
         %% Updates the grid bounds based on given bounds.
         function updateGridBounds(obj, newGridLow, newGridUp)
             obj.gridLow(1:2) = newGridLow;  
             obj.gridUp(1:2) = newGridUp;  
             
             % Create new computation grid.
-            gNew = createGrid(obj.gridLow, obj.gridUp, obj.N, obj.pdDims);
+            %gNew = createGrid(obj.gridLow, obj.gridUp, obj.N, obj.pdDims);
             gOld = obj.grid;
             
             % may want to do migrate data into new grid
-            obj.reachTube = migrateGrid(gOld, obj.reachTube, gNew);
+            gNew = createGrid(obj.gridLow, obj.gridUp, obj.N, obj.pdDims);
+            %obj.plotFuncLevelSet(obj.data0, pi/2, true, 'g');
+            obj.data0 = migrateGrid(gOld, obj.data0, gNew, 'min');
+            %obj.plotFuncLevelSet(obj.data0, pi/2, true, 'b');
             obj.grid = gNew;
         end
     end
