@@ -32,7 +32,7 @@ classdef AvoidSet < handle
     methods
         %% Constructor. 
         % NOTE: Assumes DubinsCar dynamics!
-        function obj = AvoidSet(gridLow, gridUp,  lowRealObs, upRealObs, N, dt, warmStart)
+        function obj = AvoidSet(gridLow, gridUp, lowRealObs, upRealObs, N, dt, warmStart)
             obj.gridLow = gridLow;  
             obj.gridUp = gridUp;    
             obj.N = N;      
@@ -116,11 +116,15 @@ classdef AvoidSet < handle
         
         %% Computes avoid set. 
         % Inputs:
-        %   lowSenseXY [vector] - (x,y) coords of lower left sensing box
-        %   upSenseXY [vector]  - (x,y) coords of upper right sensing box
+        %   senseData [vector] - if rectangle sensing region, 
+        %                        (x,y) coords of lower left sensing box and
+        %                        (x,y) coords of upper right sensing box.
+        %                        if circle sensing region, 
+        %                        (x,y) coords of center and radius
+        %   senseShape [string] - either 'rectangle' or 'circle'
         % Outputs:
         %   dataOut             - infinite-horizon (converged) value function 
-        function dataOut = computeAvoidSet(obj, lowSenseXY, upSenseXY)
+        function dataOut = computeAvoidSet(obj, senseData, senseShape)
             
             % ---------- START CONSTRUCT l(x) ---------- %
             
@@ -128,9 +132,17 @@ classdef AvoidSet < handle
             % or 'known' environment.
             % NOTE: need to negate the default shape function to make sure
             %       free space is assigned (+) and unknown space is (-)
-            lowObs = [lowSenseXY;-inf];
-            upObs = [upSenseXY;inf];
-            sensingShape = -shapeRectangleByCorners(obj.grid,lowObs,upObs);
+            if strcmp(senseShape, 'rectangle')
+                lowSenseXY = senseData(:,1);
+                upSenseXY = senseData(:,2);
+                lowObs = [lowSenseXY;-inf];
+                upObs = [upSenseXY;inf];
+                sensingShape = -shapeRectangleByCorners(obj.grid,lowObs,upObs);
+            else % if circular sensing region
+                center = senseData(:,1);
+                radius = senseData(1,2);
+                sensingShape = -shapeCylinder(obj.grid, 3, center, radius);
+            end
             
             unionL = shapeUnion(sensingShape, obj.lReal);
             if isnan(obj.lCurr)

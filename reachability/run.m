@@ -2,11 +2,11 @@
 % DONE:
 % - [done] assume sensing radius is square + obstacles are square -- compute 
 %   intersection of the two to get new square that becomes a l(x)
-% - [done] put in warm-starting based on updated sensor measurements
-% - [done] try to plot different perspectives to verify the computation (?)
+% - [done] try to plot different perspectives to verify the computation 
 % - [done] compute solution IF YOU KNEW ENTIRE ENVIRONMENT *beforehand*
 
 % TODO:
+% - put in warm-starting based on updated sensor measurements
 % - put in discounting
 % - plot the final V(x) that we got after execution is done
 % - implement MPC-style planning with the value function being queried for
@@ -39,17 +39,24 @@ x = [2.0; 2.5; pi/2];
 
 %% Compute first safe set based on sensing. 
 
-% get the sensing radius
+% get the sensing radius (rectangle)
+% senseShape = 'rectangle';
+% senseRad = 1.5;
+% lowSense = [x(1)-senseRad; x(2)-senseRad];
+% upSense = [x(1)+senseRad; x(2)+senseRad];
+% senseData = [lowSense, upSense];
+
+% get the sensing radius (circle) 
+senseShape = 'circle';
 senseRad = 1.5;
-lowSense = [x(1)-senseRad; x(2)-senseRad];
-upSense = [x(1)+senseRad; x(2)+senseRad];
+senseData = [[x(1);x(2)], [senseRad;senseRad]];
 
 % TODO: WARM STARTING DOESN'T WORK RN.
 % If we want to warm start with prior value function.
 warmStart = false;
 % Setup avoid set object and compute first set.
 set = AvoidSet(gridLow, gridUp, lowRealObs, upRealObs, N, dt, warmStart);
-set.computeAvoidSet(lowSense, upSense);
+set.computeAvoidSet(senseData, senseShape);
 
 %% Plot initial conditions, sensing, and safe set.
 
@@ -63,7 +70,7 @@ beliefObstacle = plt.plotFuncLevelSet(set.grid, -set.lCurr, x(3), true, [0.6,0.6
 % Plot environment, car, and sensing.
 envHandle = plt.plotEnvironment();
 carVis = plt.plotCar(x);
-senseVis = plt.plotSensing(x, senseRad);
+senseVis = plt.plotSensing(x, senseRad, senseShape);
 
 %% Simulate dubins car moving around environment and the safe set changing
 
@@ -78,22 +85,26 @@ for t=1:T
     dx = dynamics(set.dCar,t,x,u);
     x = x + dx*dt;
     
-    % get the sensing radius
-    lowSense = [x(1)-senseRad; x(2)-senseRad];
-    upSense = [x(1)+senseRad; x(2)+senseRad];
+    % get the sensing radius (rectangle)
+    %lowSense = [x(1)-senseRad; x(2)-senseRad];
+    %upSense = [x(1)+senseRad; x(2)+senseRad];
+    %senseData = [lowSense,upSense];
+    
+    % get the sensing radius (circle)
+    senseData = [[x(1);x(2)],[senseRad;senseRad]];    
     
     % update l(x) and the avoid set.
-    set.computeAvoidSet(lowSense, upSense);
+    set.computeAvoidSet(senseData, senseShape);
     
     % -------------- Plotting -------------- %
-    % plot belief obstacle -- original l(x) which can be found at valueFun(end)
-    % plot reachable set -- V_converged which can be found at valueFun(1)
-    
+
     % Delete old visualizations.
     delete(beliefObstacle);
     delete(valueFunc);
     
     % Plot belief obstacle (i.e. everything unsensed) and the value function.
+    % 	belief obstacle -- original l(x) which can be found at valueFun(end)
+    % 	reachable set -- V_converged which can be found at valueFun(1)
     valueFunc = plt.plotFuncLevelSet(set.grid, -set.valueFun(:,:,:,1), x(3), true, [1,0,0], 'hot');
     beliefObstacle = plt.plotFuncLevelSet(set.grid, -set.lCurr, x(3), true, [0.6,0.6,0.6], 'bone');
 
@@ -104,7 +115,7 @@ for t=1:T
     % Plot the state of the car (point), environment, and sensing.
     carVis = plt.plotCar(x);
     envHandle = plt.plotEnvironment();
-	senseVis = plt.plotSensing(x, senseRad);
+	senseVis = plt.plotSensing(x, senseRad, senseShape);
     % ----------------------------------- %
     
     % Pause based on timestep.

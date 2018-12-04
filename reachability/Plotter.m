@@ -97,10 +97,14 @@ classdef Plotter
         %   senseRad [float] - sensing radius
         % Ouput:
         %   s   - handle for figure
-        function s = plotSensing(obj, x, senseRad)
-            lowx = x(1)-senseRad;
-            lowy = x(2)-senseRad;
-            s = rectangle('Position',[lowx,lowy,senseRad*2,senseRad*2], 'EdgeColor', [1,0,0,0.5], 'LineWidth', 2);
+        function s = plotSensing(obj, x, senseRad, senseShape)
+            if strcmp(senseShape,'rectangle')
+                lowx = x(1)-senseRad;
+                lowy = x(2)-senseRad;
+                s = rectangle('Position',[lowx,lowy,senseRad*2,senseRad*2], 'EdgeColor', [1,0,0,0.5], 'LineWidth', 2);
+            else
+                s = viscircles([x(1),x(2)],senseRad);
+            end
         end
     end
 end
