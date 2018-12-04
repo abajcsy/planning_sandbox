@@ -11,43 +11,82 @@ classdef AvoidSet < handle
         gridLow         % Lower corner of computation domain
         gridUp          % Upper corner of computation domain
         N               % Number of grid points per dimension
-        grid            % Computation grid
+        grid            % Computation grid struct
         dt              % Timestep in discretization
-        reachTube       % Stores the converged backwards reachable tube
         computeTimes    % Stores the computation times
         dCar            % Dynamical system (dubins car)
         pdDims          % Which dimension is periodic?
-        data0           % Stores initial value function (could be l(x) or old V(0))
+        lowRealObs      % (x,y) lower left corner of obstacle
+        upRealObs       % (x,y) upper right corner of obstacle
+        lReal           % cost function representing TRUE environment
+        lRealMask       % bitmap representing cost function lReal
+        lCurr           % current cost function representation (constructed from measurements)
+        valueFun        % Stores most recent converged value function 
         timeDisc        % Discretized time vector          
         schemeData      % Used to specify dyn, grid, etc. for HJIPDE_solve()
         HJIextraArgs    % Specifies extra args to HJIPDE_solve()
+        warmStart       % (bool) if we want to warm start with prior V(x)
+        firstCompute    % (bool) flag to see if this is the first time we have done computation
     end
     
     methods
         %% Constructor. 
         % NOTE: Assumes DubinsCar dynamics!
-        function obj = AvoidSet(gridLow, gridUp, N, dt)
+        function obj = AvoidSet(gridLow, gridUp,  lowRealObs, upRealObs, N, dt, warmStart)
             obj.gridLow = gridLow;  
             obj.gridUp = gridUp;    
             obj.N = N;      
             obj.pdDims = 3;      % 3rd dimension is periodic for dubins
             obj.dt = dt;
             obj.grid = createGrid(obj.gridLow, obj.gridUp, obj.N, obj.pdDims);
-            obj.reachTube = [];
             obj.computeTimes = [];
+            
+            % Store obstacle coordinates.
+            obj.lowRealObs = lowRealObs;
+            obj.upRealObs = upRealObs;
+            
+            % Create the 'ground-truth' cost function from obstacle.
+            lowObs = [lowRealObs;-inf];
+            upObs = [upRealObs;inf];
+            obj.lReal = shapeRectangleByCorners(obj.grid,lowObs,upObs);
+            
+            % Create bitmask representing 'ground-truth' cost function.
+            mask = obj.lReal;
+            mask(mask == 0) = -0.1; % THIS IS A HACK!
+            mask(mask > 0.0) = 0.0;
+            mask(mask < 0.0) = 1.0;
+            obj.lRealMask = mask;
+            
+            % Store the current estimate of the cost function (from
+            % sensing).
+            obj.lCurr = NaN;
             
             % Before the problem starts, dont initialize the value
             % function.
-            obj.data0 = NaN;
+            obj.valueFun = NaN;
+            obj.warmStart = warmStart;
+            
+            % flag to tell us if this is the first time we have computed
+            % lCurr or valueFun
+            obj.firstCompute = true;
             
             % Input bounds for dubins car.
-            speed = 1;
+            %speed = 1;
             wMax = 1;
+            vrange = [0,1];
+            
+            % --- DISTURBANCE --- %
+            %dMode = 'min';
+            %dMax = [.25, .25, 0];
+            % ------------------- %
 
             % Define dynamic system.
             % NOTE: init condition doesn't matter for computation.
             xinit = [2.0, 2.5, 0.0]; 
-            obj.dCar = DubinsCar(xinit, wMax, speed);
+            
+            % Create dubins car where u = [v, w]
+            obj.dCar = Plane(xinit, wMax, vrange);
+            %obj.dCar = DubinsCar(xinit, wMax, speed);
             
             % Time vector.
             t0 = 0;
@@ -62,177 +101,116 @@ classdef AvoidSet < handle
             obj.schemeData.dynSys = obj.dCar;
             obj.schemeData.accuracy = 'high'; % Set accuracy.
             obj.schemeData.uMode = uMode;
+            %obj.schemeData.dMode = dMode;
 
             % Convergence information
             obj.HJIextraArgs.stopConverge = 1;
-            obj.HJIextraArgs.convergeThreshold=.06;
+            obj.HJIextraArgs.convergeThreshold = .05;
+            
+            % Built-in plotting information
+            %obj.HJIextraArgs.visualize.valueSet = 1;
+            %obj.HJIextraArgs.visualize.initialValueSet = 1;
+            %obj.HJIextraArgs.visualize.figNum = 1; %set figure number
+            %obj.HJIextraArgs.visualize.deleteLastPlot = true; %delete previous plot as you update
         end
         
         %% Computes avoid set. 
         % Inputs:
-        %   lowObsXY [vector]   - (x,y) coords of lower left-corner of obstacle
-        %   upObsXY [vector]    - (x,y) coords of upper right-hand corner of obstacle
-        %   lowKnownXY [vector] - (x,y) coords of lower left compute/known
-        %   env
-        %   upKnownXY [vector]  - (x,y) coords of upper right compute/known
-        %   env
         %   lowSenseXY [vector] - (x,y) coords of lower left sensing box
         %   upSenseXY [vector]  - (x,y) coords of upper right sensing box
         % Outputs:
         %   dataOut             - infinite-horizon (converged) value function 
-        function dataOut = computeAvoidSet(obj, lowObsXY, upObsXY, ...
-                lowKnownXY, upKnownXY, lowSenseXY, upSenseXY)
+        function dataOut = computeAvoidSet(obj, lowSenseXY, upSenseXY)
             
             % ---------- START CONSTRUCT l(x) ---------- %
             
-            % Construct cost function for obstacle. 
-            % Function is positive inside the set and negative outside.
-            [~,numObs] = size(lowObsXY); % get number of obstacles
-            
-            % NOTE: we need at least one obstacle!
-            low = lowObsXY(:,1);
-            up = upObsXY(:,1);
-            lowObs = [low(1);low(2);-inf];
-            upObs = [up(1);up(2);inf];
-            obsShape = shapeRectangleByCorners(obj.grid,lowObs,upObs);
-            
-            % Union all other obstacles with the first one.
-            for idx=2:numObs
-                low = lowObsXY(:,idx);
-                up = upObsXY(:,idx);
-                lowObs = [low(1);low(2);-inf];
-                upObs = [up(1);up(2);inf];
-                newObs = shapeRectangleByCorners(obj.grid,lowObs,upObs);
-                obsShape = shapeUnion(obsShape, newObs);
-            end
-            
-            % Construct cost function for region outside 'known' environment.
+            % Construct cost function for region outside sensing radius
+            % or 'known' environment.
             % NOTE: need to negate the default shape function to make sure
             %       free space is assigned (+) and unknown space is (-)
-            lowObs = [lowKnownXY(1);lowKnownXY(2);-inf];
-            upObs = [upKnownXY(1);upKnownXY(2);inf];
-            envShape = -shapeRectangleByCorners(obj.grid,lowObs,upObs);
+            lowObs = [lowSenseXY;-inf];
+            upObs = [upSenseXY;inf];
+            sensingShape = -shapeRectangleByCorners(obj.grid,lowObs,upObs);
             
-            %obj.plotFuncLevelSet(envShape, pi/2, true, 'm');
-            
-            if ~isempty(lowSenseXY) && ~isempty(upSenseXY)
-                % Construct cost function for region outside sensing radius.
-                % NOTE: need to negate the default shape function to make sure
-                %       free space is assigned (+) and unknown space is (-)
-                lowObsSense = [lowSenseXY(1);lowSenseXY(2);-inf];
-                upObsSense = [upSenseXY(1);upSenseXY(2);inf];
-                senseShape = -shapeRectangleByCorners(obj.grid,lowObsSense,upObsSense);
-            end
-            
-            % Combine the obstacle and environment cost functions together.
-            costData = shapeUnion(obsShape, envShape);
-            
-            % Combine the unioned obs/env cost with the sensing radius
-            if ~isempty(lowSenseXY) && ~isempty(upSenseXY)
-                %obj.plotFuncLevelSet(senseShape, pi/2, true, 'r');
-                %obj.plotFuncLevelSet(costData, pi/2, true, 'g');
-                lOfX = shapeIntersection(costData, senseShape);
+            unionL = shapeUnion(sensingShape, obj.lReal);
+            if isnan(obj.lCurr)
+                obj.lCurr = unionL;
             else
-                lOfX = costData;
+                obj.lCurr = shapeIntersection(unionL, obj.lCurr);
             end
             
-            % Sanity check: you can plot the cost function l(x).
-            %obj.plotFuncLevelSet(lOfX, pi/2, true, 'b');
-
             % ------------- CONSTRUCT V(x) ----------- %
-            
-            if isnan(obj.data0)
-                % If we don't have a value function initialized, 
-                % use l(x) as our initial value function.
-                obj.data0 = lOfX;
-                % minWith zero gives us a tube instead of a set.
-                minWith = 'zero';
+            if obj.firstCompute
+                % First time we are doing computation, set data0 to lcurr
+                data0 = obj.lCurr;
+                obj.firstCompute = false;
             else
-                % Otherwise, use the prior instantiation of the 
-                % value function data0 = Vold, and just set new l(x)
-                obj.HJIextraArgs.targets = lOfX;
-                minWith = 'minVwithL';
+                if obj.warmStart
+                    % If we are warm starting, use the old value function
+                    % as initial V(x) and then the true/correct l(x) in targets
+                    data0 = obj.valueFun(:,:,:,1);
+                    % TODO: WARM STARTING DOESN'T WORK RN.
+                else
+                    data0 = obj.lCurr;
+                end
             end
+
+            obj.HJIextraArgs.targets = obj.lCurr;
+            minWith = 'minVwithL';
             
-            % ------------ Compute value function ---------- %
+            % ------------ Compute value function ---------- % 
             [dataOut, tau, extraOuts] = ...
-              HJIPDE_solve(obj.data0, obj.timeDisc, obj.schemeData, minWith, obj.HJIextraArgs);
-          
+              HJIPDE_solve(data0, obj.timeDisc, obj.schemeData, minWith, obj.HJIextraArgs);
+            
             % Update internal variables.
-            obj.data0 = dataOut; % may not neat reachTube anymore
-            %obj.plotFuncLevelSet(obj.data0, pi/2, true, 'y');
+            obj.valueFun = dataOut;
             obj.computeTimes = tau;
         end
         
-        %% Plot slice of value function at specific theta
-        % Inputs:
-        %   theta [float] - angle for which to plot the level set
-        %   plotFinalTime [bool] - if true, plots converged level set.
-        %                          Otherwise plots initial level set.
-        % Outputs: 
-        %   plots level set in (x,y) for fixed theta.
-        function h = plotLevelSet(obj, theta, plotFinalTime)
-            % By default plot final time set.
-            data = obj.data0(:,:,:,end);
-            extraArgs.LineWidth = 1.0;
+        %% Compute avoid set imagining you knew the true l(x) of the environment.
+        function dataOut = computeAvoidSetBASELINE(obj)
+            % ------------ Compute value function if you knew true l(x) ---------- %
             
-            if ~plotFinalTime
-                % If plotting inital set.
-                data = obj.data0(:,:,:,1);
-                extraArgs.LineWidth = 3.0;
-            end
+            obj.data0 = obj.lReal;
             
-            % Grab slice at theta.
-            [gPlot, dataPlot] = proj(obj.grid, data, [0 0 1], theta);
+            obj.HJIextraArgs.visualize.valueSet = 1;
+            obj.HJIextraArgs.visualize.plotColorVS = [0.6,0.6,0.6];
+            obj.HJIextraArgs.visualize.initialValueSet = 1;
 
-            % Visualize final set.
-            % NOTE: plot -data because by default contourf plots all values
-            % that are ABOVE zero, but inside our obstacle we have values
-            % BELOW zero.
-            h = visSetIm(gPlot, -dataPlot, 'k', 0, extraArgs);
-            colormap(bone)
-            drawnow   
-        end
-        
-        %% Plot level set of arbitrary function
-        function h = plotFuncLevelSet(obj, func, theta, plotFinalTime, color)
-            % By default plot final time set.
-            data = func(:,:,:,end);
-            extraArgs.LineWidth = 1.0;
+            % Plot *final* value function?
+            obj.HJIextraArgs.visualize.valueFunction = 0;
+            obj.HJIextraArgs.visualize.plotColorVF = [0.7,0.7,0.9];
+            obj.HJIextraArgs.visualize.plotAlphaVF = 0.7;
             
-            if ~plotFinalTime
-                % If plotting inital set.
-                data = func(:,:,:,1);
-                extraArgs.LineWidth = 3.0;
-            end
+            % Plot *initial* value function?
+            obj.HJIextraArgs.visualize.initialValueFunction = 0;            
+            obj.HJIextraArgs.visualize.plotColorVF0 = [0.6,0.6,0.6];
             
-            % Grab slice at theta.
-            [gPlot, dataPlot] = proj(obj.grid, data, [0 0 1], theta);
+            % Visualization setup.
+            obj.HJIextraArgs.visualize.figNum = 1; %set figure number
+            obj.HJIextraArgs.visualize.deleteLastPlot = 1; %delete previous plot as you update
+            obj.HJIextraArgs.visualize.holdOn = 1; % don't clear the figure when starting
+            obj.HJIextraArgs.visualize.xTitle =  'x1';
+            obj.HJIextraArgs.visualize.yTitle =  'x2';
+            obj.HJIextraArgs.visualize.zTitle =  'x3';
 
-            % Visualize final set.
-            % NOTE: plot -data because by default contourf plots all values
-            % that are ABOVE zero, but inside our obstacle we have values
-            % BELOW zero.
-            h = visSetIm(gPlot, -dataPlot, color, 0, extraArgs);
-            colormap(bone)
-            drawnow   
-        end
-        
-        %% Updates the grid bounds based on given bounds.
-        function updateGridBounds(obj, newGridLow, newGridUp)
-            obj.gridLow(1:2) = newGridLow;  
-            obj.gridUp(1:2) = newGridUp;  
+            % Which dimensions to plot?
+            %obj.HJIextraArgs.visualize.plotData.plotDims = [1 1 0]; % Plot x dimension
+            %obj.HJIextraArgs.visualize.plotData.projpt = pi/2; %{0,'min'}; % y = 0, theta unioned
+
+            minWith = 'zero';
+            [dataOut,~,~] = ...
+              HJIPDE_solve(obj.data0, obj.timeDisc, obj.schemeData, minWith, obj.HJIextraArgs);
             
-            % Create new computation grid.
-            %gNew = createGrid(obj.gridLow, obj.gridUp, obj.N, obj.pdDims);
-            gOld = obj.grid;
-            
-            % may want to do migrate data into new grid
-            gNew = createGrid(obj.gridLow, obj.gridUp, obj.N, obj.pdDims);
-            %obj.plotFuncLevelSet(obj.data0, pi/2, true, 'g');
-            obj.data0 = migrateGrid(gOld, obj.data0, gNew, 'min');
-            %obj.plotFuncLevelSet(obj.data0, pi/2, true, 'b');
-            obj.grid = gNew;
+            % Plot the obstacle outline on top.
+            lowObs = [4;1];
+            upObs = [7;4];
+            width = upObs(1) - lowObs(1);
+            height = upObs(2) - lowObs(2);
+            obsCoord = [lowObs(1), lowObs(2), width, height];
+            rectangle('Position', obsCoord, 'Linewidth', 2.0, 'LineStyle', '--'); 
+            box on
+            grid off
         end
     end
 end

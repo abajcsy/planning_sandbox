@@ -25,11 +25,17 @@ classdef Environment < handle
             width = obj.upObs(1) - obj.lowObs(1);
             height = obj.upObs(2) - obj.lowObs(2);
             obsCoord = [obj.lowObs(1), obj.lowObs(2), width, height];
-            h = rectangle('Position', obsCoord, 'Linewidth', 0.5, 'LineStyle', '--');
+            h = rectangle('Position', obsCoord, 'Linewidth', 2.0, 'LineStyle', '--'); 
+            %h = rectangle('Position', obsCoord, 'Linewidth', 0.5, 'FaceColor',[0,0,0]);
             
             % setup the figure axes to represent the entire environment
             xlim([obj.lowEnv(1) obj.upEnv(1)]);
             ylim([obj.lowEnv(2) obj.upEnv(2)]);
+            
+            xlabel('x1');
+            ylabel('x2');
+            set(gca,'TickLength',[0 0]);
+            box on
         end
         
         %% Computes intersection of obstacle box and sensing box. 
