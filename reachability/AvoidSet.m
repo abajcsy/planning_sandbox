@@ -14,7 +14,7 @@ classdef AvoidSet < handle
         grid            % Computation grid struct
         dt              % Timestep in discretization
         computeTimes    % Stores the computation times
-        dCar            % Dynamical system (dubins car)
+        dynSys          % Dynamical system (dubins car)
         pdDims          % Which dimension is periodic?
         lowRealObs      % (x,y) lower left corner of obstacle
         upRealObs       % (x,y) upper right corner of obstacle
@@ -71,7 +71,6 @@ classdef AvoidSet < handle
             obj.firstCompute = true;
             
             % Input bounds for dubins car.
-            %speed = 1;
             wMax = 1;
             vrange = [0,1];
             
@@ -85,8 +84,7 @@ classdef AvoidSet < handle
             xinit = [2.0, 2.5, 0.0]; 
             
             % Create dubins car where u = [v, w]
-            obj.dCar = Plane(xinit, wMax, vrange, dMax);
-            %obj.dCar = DubinsCar(xinit, wMax, speed);
+            obj.dynSys = Plane(xinit, wMax, vrange, dMax);
             
             % Time vector.
             t0 = 0;
@@ -98,7 +96,7 @@ classdef AvoidSet < handle
             
             % Put grid and dynamic systems into schemeData.
             obj.schemeData.grid = obj.grid;
-            obj.schemeData.dynSys = obj.dCar;
+            obj.schemeData.dynSys = obj.dynSys;
             obj.schemeData.accuracy = 'high'; % Set accuracy.
             obj.schemeData.uMode = uMode;
             obj.schemeData.dMode = dMode;

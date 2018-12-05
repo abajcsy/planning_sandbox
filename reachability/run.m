@@ -4,15 +4,15 @@
 %   intersection of the two to get new square that becomes a l(x)
 % - [done] try to plot different perspectives to verify the computation 
 % - [done] compute solution IF YOU KNEW ENTIRE ENVIRONMENT *beforehand*
+% - [done] plot the final V(x) that we got after execution is done
 
 % TODO:
-% - put in warm-starting based on updated sensor measurements
-% - put in discounting
-% - plot the final V(x) that we got after execution is done
-% - implement MPC-style planning with the value function being queried for
-%   collision-checking
+% - implement planner and optimal controller scheme
+% - what if we knew some prior info about environment and other stuff we didnt?
+% - put in warm-starting based on updated sensor measurements (?)
+% - put in discounting (?)
 % - look at Kene's temporal differencing work
-% - look at approximate reachability techniques
+% - look at approximate reachability techniques (Murat, etc.)
 
 % Clear old figure plotting and variables.
 clf 
@@ -86,7 +86,7 @@ for t=1:T
     u = getControl(t);
 
     % Apply control to dynamics.
-    dx = dynamics(set.dCar,t,x,u);
+    dx = dynamics(set.dynSys,t,x,u);
     x = x + dx*dt;
     
     % get the sensing radius (rectangle)
