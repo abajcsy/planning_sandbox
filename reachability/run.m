@@ -16,7 +16,8 @@
 
 % Clear old figure plotting and variables.
 clf 
-clear
+clc 
+clear all
 
 % Setup environment bounds.
 lowEnv = [0;0];
@@ -37,7 +38,7 @@ dt = 0.05;
 % Initial condition.
 x = [2.0; 2.5; pi/2];
 
-%% Compute first safe set based on sensing. 
+%% Construct sensed region.
 
 % get the sensing radius (rectangle)
 % senseShape = 'rectangle';
@@ -48,8 +49,10 @@ x = [2.0; 2.5; pi/2];
 
 % get the sensing radius (circle) 
 senseShape = 'circle';
-senseRad = 1.5;
+senseRad = 2;
 senseData = [[x(1);x(2)], [senseRad;senseRad]];
+
+%% Compute first safe set based on sensing. 
 
 % TODO: WARM STARTING DOESN'T WORK RN.
 % If we want to warm start with prior value function.
@@ -64,13 +67,14 @@ hold on
 
 % Plot l(x) and V(x).
 plt = Plotter(lowEnv, upEnv, lowRealObs, upRealObs);
-valueFunc = plt.plotFuncLevelSet(set.grid, -set.valueFun(:,:,:,1), x(3), true, [1,0,0], 'hot');
-beliefObstacle = plt.plotFuncLevelSet(set.grid, -set.lCurr, x(3), true, [0.6,0.6,0.6], 'bone');
+visSet = true;
+valueFunc = plt.plotFuncLevelSet(set.grid, -set.valueFun(:,:,:,end), x(3), visSet, [1,0,0], 'hot');
+beliefObstacle = plt.plotFuncLevelSet(set.grid, -set.valueFun(:,:,:,1), x(3), visSet, [0,0,0], 'hot');
 
 % Plot environment, car, and sensing.
 envHandle = plt.plotEnvironment();
 carVis = plt.plotCar(x);
-senseVis = plt.plotSensing(x, senseRad, senseShape);
+%senseVis = plt.plotSensing(x, senseRad, senseShape);
 
 %% Simulate dubins car moving around environment and the safe set changing
 
@@ -105,17 +109,17 @@ for t=1:T
     % Plot belief obstacle (i.e. everything unsensed) and the value function.
     % 	belief obstacle -- original l(x) which can be found at valueFun(end)
     % 	reachable set -- V_converged which can be found at valueFun(1)
-    valueFunc = plt.plotFuncLevelSet(set.grid, -set.valueFun(:,:,:,1), x(3), true, [1,0,0], 'hot');
-    beliefObstacle = plt.plotFuncLevelSet(set.grid, -set.lCurr, x(3), true, [0.6,0.6,0.6], 'bone');
+    valueFunc = plt.plotFuncLevelSet(set.grid, -set.valueFun(:,:,:,end), x(3), visSet, [1,0,0], 'hot');
+    beliefObstacle = plt.plotFuncLevelSet(set.grid, -set.valueFun(:,:,:,1), x(3), visSet, [0,0,0], 'hot');
 
 	% Delete old visualizations.
     delete(carVis);
-    delete(senseVis);
+    %delete(senseVis);
     
     % Plot the state of the car (point), environment, and sensing.
     carVis = plt.plotCar(x);
     envHandle = plt.plotEnvironment();
-	senseVis = plt.plotSensing(x, senseRad, senseShape);
+	%senseVis = plt.plotSensing(x, senseRad, senseShape);
     % ----------------------------------- %
     
     % Pause based on timestep.

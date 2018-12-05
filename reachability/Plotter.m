@@ -1,6 +1,5 @@
 classdef Plotter
-    %PLOTTER Summary of this class goes here
-    %   Detailed explanation goes here
+    %PLOTTER Plots level sets and environment and stuff.
     
     properties
         lowEnv      % lower (x,y) corner of environment
@@ -54,15 +53,17 @@ classdef Plotter
             
             % Grab slice at theta.
             [gPlot, dataPlot] = proj(g, func, [0 0 1], theta);
+            extraArgs.LineWidth = 2;
 
             % Visualize final set.
             % NOTE: plot -data because by default contourf plots all values
             % that are ABOVE zero, but inside our obstacle we have values
             % BELOW zero.
             if visSet
-                h = visSetIm(gPlot, dataPlot, edgeColor, 0);
+                h = visSetIm(gPlot, dataPlot, edgeColor, 0, extraArgs);
             else
                 h = visFuncIm(gPlot, dataPlot, edgeColor, 0.5);
+                xlabel('V(x)');
             end
 
             colormap(cmap);

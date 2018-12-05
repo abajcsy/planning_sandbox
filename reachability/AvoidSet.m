@@ -76,8 +76,8 @@ classdef AvoidSet < handle
             vrange = [0,1];
             
             % --- DISTURBANCE --- %
-            %dMode = 'min';
-            %dMax = [.25, .25, 0];
+            dMode = 'min';
+            dMax = [.2, .2, .2];
             % ------------------- %
 
             % Define dynamic system.
@@ -85,7 +85,7 @@ classdef AvoidSet < handle
             xinit = [2.0, 2.5, 0.0]; 
             
             % Create dubins car where u = [v, w]
-            obj.dCar = Plane(xinit, wMax, vrange);
+            obj.dCar = Plane(xinit, wMax, vrange, dMax);
             %obj.dCar = DubinsCar(xinit, wMax, speed);
             
             % Time vector.
@@ -101,11 +101,11 @@ classdef AvoidSet < handle
             obj.schemeData.dynSys = obj.dCar;
             obj.schemeData.accuracy = 'high'; % Set accuracy.
             obj.schemeData.uMode = uMode;
-            %obj.schemeData.dMode = dMode;
+            obj.schemeData.dMode = dMode;
 
             % Convergence information
             obj.HJIextraArgs.stopConverge = 1;
-            obj.HJIextraArgs.convergeThreshold = .05;
+            obj.HJIextraArgs.convergeThreshold = .01;
             
             % Built-in plotting information
             %obj.HJIextraArgs.visualize.valueSet = 1;
@@ -144,6 +144,7 @@ classdef AvoidSet < handle
                 sensingShape = -shapeCylinder(obj.grid, 3, center, radius);
             end
             
+            % Union the sensed region with the actual obstacle.
             unionL = shapeUnion(sensingShape, obj.lReal);
             if isnan(obj.lCurr)
                 obj.lCurr = unionL;
@@ -168,7 +169,8 @@ classdef AvoidSet < handle
             end
 
             obj.HJIextraArgs.targets = obj.lCurr;
-            minWith = 'minVwithL';
+            %minWith = 'minVwithL';
+            minWith = 'zero';
             
             % ------------ Compute value function ---------- % 
             [dataOut, tau, extraOuts] = ...
@@ -177,52 +179,6 @@ classdef AvoidSet < handle
             % Update internal variables.
             obj.valueFun = dataOut;
             obj.computeTimes = tau;
-        end
-        
-        %% Compute avoid set imagining you knew the true l(x) of the environment.
-        function dataOut = computeAvoidSetBASELINE(obj)
-            % ------------ Compute value function if you knew true l(x) ---------- %
-            
-            obj.data0 = obj.lReal;
-            
-            obj.HJIextraArgs.visualize.valueSet = 1;
-            obj.HJIextraArgs.visualize.plotColorVS = [0.6,0.6,0.6];
-            obj.HJIextraArgs.visualize.initialValueSet = 1;
-
-            % Plot *final* value function?
-            obj.HJIextraArgs.visualize.valueFunction = 0;
-            obj.HJIextraArgs.visualize.plotColorVF = [0.7,0.7,0.9];
-            obj.HJIextraArgs.visualize.plotAlphaVF = 0.7;
-            
-            % Plot *initial* value function?
-            obj.HJIextraArgs.visualize.initialValueFunction = 0;            
-            obj.HJIextraArgs.visualize.plotColorVF0 = [0.6,0.6,0.6];
-            
-            % Visualization setup.
-            obj.HJIextraArgs.visualize.figNum = 1; %set figure number
-            obj.HJIextraArgs.visualize.deleteLastPlot = 1; %delete previous plot as you update
-            obj.HJIextraArgs.visualize.holdOn = 1; % don't clear the figure when starting
-            obj.HJIextraArgs.visualize.xTitle =  'x1';
-            obj.HJIextraArgs.visualize.yTitle =  'x2';
-            obj.HJIextraArgs.visualize.zTitle =  'x3';
-
-            % Which dimensions to plot?
-            %obj.HJIextraArgs.visualize.plotData.plotDims = [1 1 0]; % Plot x dimension
-            %obj.HJIextraArgs.visualize.plotData.projpt = pi/2; %{0,'min'}; % y = 0, theta unioned
-
-            minWith = 'zero';
-            [dataOut,~,~] = ...
-              HJIPDE_solve(obj.data0, obj.timeDisc, obj.schemeData, minWith, obj.HJIextraArgs);
-            
-            % Plot the obstacle outline on top.
-            lowObs = [4;1];
-            upObs = [7;4];
-            width = upObs(1) - lowObs(1);
-            height = upObs(2) - lowObs(2);
-            obsCoord = [lowObs(1), lowObs(2), width, height];
-            rectangle('Position', obsCoord, 'Linewidth', 2.0, 'LineStyle', '--'); 
-            box on
-            grid off
         end
     end
 end
