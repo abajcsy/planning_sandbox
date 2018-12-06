@@ -29,7 +29,7 @@ classdef AStar
         %   goal [vector]   - (X,Y) grid location of goal
         % Output:
         %   waypts [cell array] - (X,Y) waypts along shortest path from start to goal
-        function waypts = plan(start, goal)
+        function waypts = plan(obj, start, goal)
             % Initialize both open and closed list to empty list of Nodes.
             openList = {};
             closedList = {};
@@ -45,7 +45,7 @@ classdef AStar
             while ~isempty(openList)
                 % Let the currentNode equal the node with the least totalCost
                 currNode = openList{1};
-                currIdx = 0;
+                currIdx = 1;
                 for k=1:length(openList)
                     node = openList{k};
                     if node.totalCost < currNode.totalCost
@@ -64,12 +64,15 @@ classdef AStar
                     % Congratz! You've found the end! Backtrack to get path
                     path = {};
                     curr = currNode;
-                    while ~isnan(current)
+                    % This is a gross thing we have to do to check for
+                    % nullity in MATLAB.
+                    while strcmp(class(curr), 'Node') 
                         path{end+1} = curr.position;
                         curr = curr.parent;
                     end
                     % Return reversed path
                     waypts = fliplr(path);
+                    return
                 end
                     
                 % // Generate children
@@ -91,7 +94,7 @@ classdef AStar
                         
                     % // Create the dist to start, goal, and total cost values
                     child.dToStart = currNode.dToStart + currNode.distance(child);
-                    child.dToEnd = currNode.distance(goalNode);
+                    child.dToGoal = currNode.distance(goalNode);
                     child.totalCost = child.dToStart + child.dToGoal;
                     
                     % // Child is already in openList
@@ -146,6 +149,9 @@ classdef AStar
         function bool = inCollision(obj, position)
             % TODO -- THIS JUST ALWAYS RETURNS FALSE!
             bool = false;
+            %if position(1) == 5 && position(2) == 2
+            %    bool=true;
+            %end
         end
         
         %% Converts (x,y,theta) to XY sim coordinates.

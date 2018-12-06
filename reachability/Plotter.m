@@ -107,6 +107,22 @@ classdef Plotter
                 s = viscircles([x(1),x(2)],senseRad);
             end
         end
+        
+        %% Plots waypoints.
+        function plotWaypts(obj, waypts, simWidth, simHeight)
+            X = [];
+            Y = [];
+            for i=1:length(waypts)
+                pt = waypts{i};
+                X = [X,pt(1)];
+                Y = [Y,pt(2)];
+            end
+            hold on
+            plot(X,Y, 'k', 'LineWidth', 1.5);
+            scatter(X,Y,'filled', 'k');
+            xlim([0,simWidth]);
+            ylim([0,simHeight]);
+        end
     end
 end
 

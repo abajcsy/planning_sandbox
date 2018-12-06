@@ -67,14 +67,14 @@ hold on
 
 % Plot l(x) and V(x).
 plt = Plotter(lowEnv, upEnv, lowRealObs, upRealObs);
-visSet = true;
+visSet = false;
 valueFunc = plt.plotFuncLevelSet(set.grid, -set.valueFun(:,:,:,end), x(3), visSet, [1,0,0], 'hot');
 beliefObstacle = plt.plotFuncLevelSet(set.grid, -set.valueFun(:,:,:,1), x(3), visSet, [0,0,0], 'hot');
 
 % Plot environment, car, and sensing.
 envHandle = plt.plotEnvironment();
 carVis = plt.plotCar(x);
-%senseVis = plt.plotSensing(x, senseRad, senseShape);
+senseVis = plt.plotSensing(x, senseRad, senseShape);
 
 %% Simulate dubins car moving around environment and the safe set changing
 
@@ -114,12 +114,12 @@ for t=1:T
 
 	% Delete old visualizations.
     delete(carVis);
-    %delete(senseVis);
+    delete(senseVis);
     
     % Plot the state of the car (point), environment, and sensing.
     carVis = plt.plotCar(x);
     envHandle = plt.plotEnvironment();
-	%senseVis = plt.plotSensing(x, senseRad, senseShape);
+	senseVis = plt.plotSensing(x, senseRad, senseShape);
     % ----------------------------------- %
     
     % Pause based on timestep.

@@ -28,7 +28,8 @@ classdef Node
         
         %% Returns distance between positions of current and other node.
         function dist = distance(obj, otherNode)
-            dist = (obj.position(1) - otherNode(1))^2 + (obj.position(2) - otherNode(2))^2;
+            dist = (obj.position(1) - otherNode.position(1))^2 + ...
+                (obj.position(2) - otherNode.position(2))^2;
         end
     end
 end
