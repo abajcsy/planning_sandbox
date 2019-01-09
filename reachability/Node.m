@@ -1,4 +1,4 @@
-classdef Node
+classdef Node < handle
     %NODE Node in AStar algorithm.
     
     properties

@@ -8,17 +8,18 @@ lowEnv = [0;0];
 upEnv = [10;7];
 
 % Setup discrete world size.
-simWidth = 20;
-simHeight = 14;
+simWidth = 31;
+simHeight = 31;
 
 % Create planner.
 planner = AStar(lowEnv, upEnv, simWidth, simHeight);
 
 % Initial condition.
 start = [2,2];
-goal = [19,2];
+goal = [19,25];
 
 % Generate A* plan from start to goal.
+% TODO: MAKE HEURISTIC WORK FOR DIAGONALS...
 waypts = planner.plan(start, goal);
 
 % Setup obstacle.

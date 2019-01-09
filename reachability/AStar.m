@@ -1,4 +1,4 @@
-classdef AStar
+classdef AStar < handle
     %ASTAR Planner
     
     properties
@@ -8,6 +8,9 @@ classdef AStar
         simHeight   % height of astar grid
         resX        % resolution in X (realWidth/simWidth)
         resY        % resolution in Y (realHeight/simHeight)
+        obsShape    % level set toolbox shape that represents known/sensed parts of obstacle
+                    %   obsShape <= 0 --> obstacle
+                    %   obsShape >  0 --> free-space
     end
     
     methods
@@ -20,6 +23,9 @@ classdef AStar
             
             obj.resX = (obj.upEnv(1) - obj.lowEnv(1))/obj.simWidth;
             obj.resY = (obj.upEnv(2) - obj.lowEnv(2))/obj.simHeight;
+            
+            % At first the world is obstacle-free.
+            obj.obsShape = NaN;
         end
         
         %% Plans collision-free waypoints from xcurr to goalXY
@@ -75,7 +81,7 @@ classdef AStar
                     return
                 end
                     
-                % // Generate children
+                % Generate children
                 % let the children of the currentNode equal the adjacent nodes
                 children = obj.getChildren(currNode);
                 
@@ -92,12 +98,12 @@ classdef AStar
                         end
                     end
                         
-                    % // Create the dist to start, goal, and total cost values
+                    % Create the dist to start, goal, and total cost values
                     child.dToStart = currNode.dToStart + currNode.distance(child);
                     child.dToGoal = currNode.distance(goalNode);
                     child.totalCost = child.dToStart + child.dToGoal;
                     
-                    % // Child is already in openList
+                    % Child is already in openList
                     for j=1:length(openList)
                         openNode = openList{j};
                         % if child.position is in the openList's nodes
@@ -147,11 +153,33 @@ classdef AStar
         
         %% Checks if XY position is collision-free.
         function bool = inCollision(obj, position)
-            % TODO -- THIS JUST ALWAYS RETURNS FALSE!
-            bool = false;
-            %if position(1) == 5 && position(2) == 2
-            %    bool=true;
-            %end
+            if isnan(obj.obsShape)
+                % if we haven't gotten an obstacle, then just return
+                % collision-free
+                bool = false;
+            else 
+                % check if the candidate position is collision-free
+                % NOTE: third index is for theta, but doesn't matter
+                %       cuz we are planning in (x,y)
+                distToObs = obj.obsShape(position(1),position(2),1);
+                if distToObs <= 0
+                    bool = true;
+                else
+                    bool = false;
+                end
+            end
+        end
+        
+        %% Updates obsatcle shape representation.
+        % obsShape <= 0 --> obstacle
+        % obsShape >  0 --> free-space
+        function updateObs(obj, sensedObsShape)
+            if isnan(obj.obsShape)
+               obj.obsShape = sensedObsShape;
+            else
+                % if we sensed new parts of the obstacle, update shape
+               obj.obsShape = shapeIntersection(obj.obsShape, sensedObsShape);
+            end
         end
         
         %% Converts (x,y,theta) to XY sim coordinates.
@@ -159,8 +187,8 @@ classdef AStar
         %   xcurr [vector] - (x,y,theta) current location of car
         % Output:
         %   XY [vecotr] - (x,y) coords in gridworld
-        function XY = realToSim(xcurr)
-            XY = [floor(xcurr(1)/self.resX)+1; floor(xcurr(2)/self.resY)+1];
+        function XY = realToSim(obj, xcurr)
+            XY = [floor(xcurr(1)/obj.resX)+1; floor(xcurr(2)/obj.resY)+1];
         end
 
     end

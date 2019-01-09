@@ -168,6 +168,7 @@ classdef AvoidSet < handle
 
             obj.HJIextraArgs.targets = obj.lCurr;
             %minWith = 'minVwithL';
+            %minWith = 'minVOverTime';
             minWith = 'zero';
             
             % ------------ Compute value function ---------- % 
@@ -177,6 +178,17 @@ classdef AvoidSet < handle
             % Update internal variables.
             obj.valueFun = dataOut;
             obj.computeTimes = tau;
+        end
+        
+        %% Get shape that represents sensed part of obstacle.
+        function sensedObsShape = getSensedObs(obj, senseData)
+            % NOTE: assumes circular sensing radius.
+            center = senseData(:,1);
+            radius = senseData(1,2);
+            sensingShape = shapeCylinder(obj.grid, 3, center, radius);
+            
+            % Union the sensed region with the actual obstacle.
+            sensedObsShape = shapeIntersection(sensingShape, obj.lReal);
         end
     end
 end

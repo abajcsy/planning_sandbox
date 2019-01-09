@@ -38,6 +38,12 @@ dt = 0.05;
 % Initial condition.
 x = [2.0; 2.5; pi/2];
 
+% Goal position.
+xgoal = [8.5; 2.5; -pi/2];
+
+%% Create plotter.
+plt = Plotter(lowEnv, upEnv, lowRealObs, upRealObs);
+
 %% Construct sensed region.
 
 % get the sensing radius (rectangle)
@@ -61,15 +67,46 @@ warmStart = false;
 set = AvoidSet(gridLow, gridUp, lowRealObs, upRealObs, N, dt, warmStart);
 set.computeAvoidSet(senseData, senseShape);
 
+%% Compute the first A* plan.
+
+% % Setup discrete world size.
+% simWidth = N(1);
+% simHeight = N(2);
+% 
+% % Create planner.
+% astar = AStar(lowEnv, upEnv, simWidth, simHeight);
+% 
+% % Get the sensed obstacle region and update.
+% % TODO THE GETSENSEDOBS IS WRONG!
+% senseData = [x(1:2), [senseRad;senseRad]];
+% sensedObsShape = set.getSensedObs(senseData);
+% astar.updateObs(sensedObsShape);
+% 
+% hold on
+% xlim([0,31]);
+% ylim([0,31]);
+% plt.plotObsShape(astar.obsShape);
+% 
+% % Start and goal (in grid env).
+% simStart = astar.realToSim(x);
+% simGoal = astar.realToSim(xgoal);
+% 
+% scatter(simStart(1), simStart(2));
+% scatter(simGoal(1), simGoal(2));
+% 
+% % Generate A* plan from start to goal.
+% waypts = astar.plan(simStart, simGoal);
+% plt.plotWaypts(waypts, simWidth, simHeight);
+
 %% Plot initial conditions, sensing, and safe set.
 
 hold on
 
 % Plot l(x) and V(x).
-plt = Plotter(lowEnv, upEnv, lowRealObs, upRealObs);
 visSet = false;
-valueFunc = plt.plotFuncLevelSet(set.grid, -set.valueFun(:,:,:,end), x(3), visSet, [1,0,0], 'hot');
-beliefObstacle = plt.plotFuncLevelSet(set.grid, -set.valueFun(:,:,:,1), x(3), visSet, [0,0,0], 'hot');
+cmap = 'hot';
+valueFunc = plt.plotFuncLevelSet(set.grid, -set.valueFun(:,:,:,end), x(3), visSet, [1,0,0], cmap);
+%beliefObstacle = plt.plotFuncLevelSet(set.grid, set.valueFun(:,:,:,1), x(3), visSet, [0,0,0], cmap);
 
 % Plot environment, car, and sensing.
 envHandle = plt.plotEnvironment();
@@ -103,14 +140,14 @@ for t=1:T
     % -------------- Plotting -------------- %
 
     % Delete old visualizations.
-    delete(beliefObstacle);
     delete(valueFunc);
+    %delete(beliefObstacle);
     
     % Plot belief obstacle (i.e. everything unsensed) and the value function.
     % 	belief obstacle -- original l(x) which can be found at valueFun(end)
     % 	reachable set -- V_converged which can be found at valueFun(1)
-    valueFunc = plt.plotFuncLevelSet(set.grid, -set.valueFun(:,:,:,end), x(3), visSet, [1,0,0], 'hot');
-    beliefObstacle = plt.plotFuncLevelSet(set.grid, -set.valueFun(:,:,:,1), x(3), visSet, [0,0,0], 'hot');
+    valueFunc = plt.plotFuncLevelSet(set.grid, -set.valueFun(:,:,:,end), x(3), visSet, [1,0,0], cmap);
+    %beliefObstacle = plt.plotFuncLevelSet(set.grid, -set.valueFun(:,:,:,1), x(3), visSet, [0,0,0], cmap);
 
 	% Delete old visualizations.
     delete(carVis);
@@ -128,6 +165,13 @@ end
 
 %% Returns control to apply to car at a particular time.
 function u = getControl(t)
+%     if t >= 1 && t < 35
+%         u = [1.0,-1.0];
+%     elseif t >= 35 && t < 40
+%         u = [1.0,0.0];
+%     else
+%         u = [1.0,0.0];
+%     end
     if t >= 1 && t < 20
         u = [1.0, 0.0];
     elseif t >= 20 && t < 40

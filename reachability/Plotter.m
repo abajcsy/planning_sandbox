@@ -61,12 +61,13 @@ classdef Plotter
             % BELOW zero.
             if visSet
                 h = visSetIm(gPlot, dataPlot, edgeColor, 0, extraArgs);
+                %h = visSetIm(g, func, edgeColor, 0, extraArgs);
             else
-                h = visFuncIm(gPlot, dataPlot, edgeColor, 0.5);
+                h = visFuncIm(gPlot, dataPlot); %, edgeColor, 0.5);
                 xlabel('V(x)');
             end
 
-            colormap(cmap);
+            colormap(flipud(cmap));
             xlabel('x1');
             ylabel('x2');
             grid off
@@ -102,9 +103,9 @@ classdef Plotter
             if strcmp(senseShape,'rectangle')
                 lowx = x(1)-senseRad;
                 lowy = x(2)-senseRad;
-                s = rectangle('Position',[lowx,lowy,senseRad*2,senseRad*2], 'EdgeColor', [1,0,0,0.5], 'LineWidth', 2);
+                s = rectangle('Position',[lowx,lowy,senseRad*2,senseRad*2], 'EdgeColor', [0,0,1,0.5], 'LineWidth', 2);
             else
-                s = viscircles([x(1),x(2)],senseRad);
+                s = viscircles([x(1),x(2)],senseRad, 'EdgeColor', [0,0,1,0.5], 'LineWidth', 2);
             end
         end
         
@@ -122,6 +123,19 @@ classdef Plotter
             scatter(X,Y,'filled', 'k');
             xlim([0,simWidth]);
             ylim([0,simHeight]);
+        end
+        
+        %% Plots sensed obstacle.
+        % Plots all parts that are <= 0.
+        function plotObsShape(obj, obsShape)
+           [numX, numY, ~] = size(obsShape);
+           for i=1:numX
+               for j=1:numY
+                   if obsShape(i,j,1) <= 0
+                       scatter(i,j,'filled', 'k');
+                   end
+               end
+           end
         end
     end
 end
