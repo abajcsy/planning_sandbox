@@ -5,14 +5,16 @@
 % - [done] try to plot different perspectives to verify the computation 
 % - [done] compute solution IF YOU KNEW ENTIRE ENVIRONMENT *beforehand*
 % - [done] plot the final V(x) that we got after execution is done
+% - [done] put in discounting (?) --> THIS DOESN'T CONVERGE
+% - [done] look at Kene's temporal differencing work --> this may be better
+%   than the warm-starting ...
 
 % TODO:
 % - implement planner and optimal controller scheme
 % - what if we knew some prior info about environment and other stuff we didnt?
 % - put in warm-starting based on updated sensor measurements (?)
-% - put in discounting (?)
-% - look at Kene's temporal differencing work
-% - look at approximate reachability techniques (Murat, etc.)
+% - look at approximate reachability techniques (Murat, etc.) -- this
+%   doesn't give us optimal control!
 
 % Clear old figure plotting and variables.
 clf 
@@ -145,8 +147,8 @@ for t=1:T
     %delete(beliefObstacle);
     
     % Plot belief obstacle (i.e. everything unsensed) and the value function.
-    % 	belief obstacle -- original l(x) which can be found at valueFun(end)
-    % 	reachable set -- V_converged which can be found at valueFun(1)
+    % 	belief obstacle -- original l(x) which can be found at valueFun(1)
+    % 	converged value function -- V_converged which can be found at valueFun(end)
     valueFunc = plt.plotFuncLevelSet(set.grid, -set.valueFun(:,:,:,end), x(3), visSet, [1,0,0], cmap);
     %beliefObstacle = plt.plotFuncLevelSet(set.grid, -set.valueFun(:,:,:,1), x(3), visSet, [0,0,0], cmap);
 
