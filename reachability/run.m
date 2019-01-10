@@ -62,7 +62,8 @@ senseData = [[x(1);x(2)], [senseRad;senseRad]];
 
 % TODO: WARM STARTING DOESN'T WORK RN.
 % If we want to warm start with prior value function.
-warmStart = false;
+warmStart = true;
+
 % Setup avoid set object and compute first set.
 set = AvoidSet(gridLow, gridUp, lowRealObs, upRealObs, N, dt, warmStart);
 set.computeAvoidSet(senseData, senseShape);
@@ -103,9 +104,9 @@ set.computeAvoidSet(senseData, senseShape);
 hold on
 
 % Plot l(x) and V(x).
-visSet = false;
+visSet = true;
 cmap = 'hot';
-valueFunc = plt.plotFuncLevelSet(set.grid, -set.valueFun(:,:,:,end), x(3), visSet, [1,0,0], cmap);
+valueFunc = plt.plotFuncLevelSet(set.grid, set.valueFun(:,:,:,end), x(3), visSet, [1,0,0], cmap);
 %beliefObstacle = plt.plotFuncLevelSet(set.grid, set.valueFun(:,:,:,1), x(3), visSet, [0,0,0], cmap);
 
 % Plot environment, car, and sensing.

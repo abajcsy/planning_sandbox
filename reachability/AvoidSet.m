@@ -103,7 +103,7 @@ classdef AvoidSet < handle
 
             % Convergence information
             obj.HJIextraArgs.stopConverge = 1;
-            obj.HJIextraArgs.convergeThreshold = .01;
+            obj.HJIextraArgs.convergeThreshold = .01; % .02 works with warm-starting
             
             % Built-in plotting information
             %obj.HJIextraArgs.visualize.valueSet = 1;
@@ -159,17 +159,25 @@ classdef AvoidSet < handle
                 if obj.warmStart
                     % If we are warm starting, use the old value function
                     % as initial V(x) and then the true/correct l(x) in targets
-                    data0 = obj.valueFun(:,:,:,1);
-                    % TODO: WARM STARTING DOESN'T WORK RN.
+                    data0 = obj.valueFun(:,:,:,end);
+                    
+                    % TODO: WARM STARTING DOESN'T WORK RN WHEN I GO AROUND
+                    % THE CORNER OF THE OBSTACLE.
+                    obj.HJIextraArgs.discountMode = 'Jaime';
+                    obj.HJIextraArgs.discountFactor = .999;
+                    obj.HJIextraArgs.discountAnneal = 'hard';
                 else
                     data0 = obj.lCurr;
                 end
             end
 
             obj.HJIextraArgs.targets = obj.lCurr;
-            %minWith = 'minVwithL';
+            
+            minWith = 'minVWithTarget';
             %minWith = 'minVOverTime';
-            minWith = 'zero';
+            %minWith = 'zero';
+            
+            %obj.HJIextraArgs.quiet = true;
             
             % ------------ Compute value function ---------- % 
             [dataOut, tau, extraOuts] = ...
