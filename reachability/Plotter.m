@@ -60,10 +60,11 @@ classdef Plotter
             % that are ABOVE zero, but inside our obstacle we have values
             % BELOW zero.
             if visSet
-                h = visSetIm(gPlot, dataPlot, edgeColor, 0, extraArgs);
+                h = visSetIm(gPlot, -dataPlot, edgeColor, 0, extraArgs);
                 %h = visSetIm(g, func, edgeColor, 0, extraArgs);
             else
-                h = visFuncIm(gPlot, dataPlot); %, edgeColor, 0.5);
+                alpha = 0.5;
+                h = visFuncIm(gPlot, dataPlot, edgeColor, alpha); %, edgeColor, 0.5);
                 xlabel('V(x)');
             end
 

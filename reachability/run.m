@@ -57,7 +57,7 @@ plt = Plotter(lowEnv, upEnv, lowRealObs, upRealObs);
 
 % get the sensing radius (circle) 
 senseShape = 'circle';
-senseRad = 2;
+senseRad = 1;
 senseData = [[x(1);x(2)], [senseRad;senseRad]];
 
 %% Compute first safe set based on sensing. 
@@ -107,14 +107,16 @@ hold on
 
 % Plot l(x) and V(x).
 visSet = true;
-cmap = 'hot';
-valueFunc = plt.plotFuncLevelSet(set.grid, set.valueFun(:,:,:,end), x(3), visSet, [1,0,0], cmap);
-%beliefObstacle = plt.plotFuncLevelSet(set.grid, set.valueFun(:,:,:,1), x(3), visSet, [0,0,0], cmap);
+cmapHot = 'hot';
+cmapBone = 'bone';
+%beliefObstacle = plt.plotFuncLevelSet(set.grid, set.lCurr, x(3), visSet, [0.5,0.5,0.5], cmapBone);
+valueFunc = plt.plotFuncLevelSet(set.grid, set.valueFun(:,:,:,end), x(3), visSet, [1,0,0], cmapHot);
 
 % Plot environment, car, and sensing.
 envHandle = plt.plotEnvironment();
 carVis = plt.plotCar(x);
 senseVis = plt.plotSensing(x, senseRad, senseShape);
+
 
 %% Simulate dubins car moving around environment and the safe set changing
 
@@ -129,13 +131,15 @@ for t=1:T
     dx = dynamics(set.dynSys,t,x,u);
     x = x + dx*dt;
     
-    % get the sensing radius (rectangle)
-    %lowSense = [x(1)-senseRad; x(2)-senseRad];
-    %upSense = [x(1)+senseRad; x(2)+senseRad];
-    %senseData = [lowSense,upSense];
-    
     % get the sensing radius (circle)
     senseData = [[x(1);x(2)],[senseRad;senseRad]];    
+    
+	% ---------- DEBUGGING ---------- %
+    %if abs(x(1) - 2.3979) < 0.01 && abs(x(2) - 4.2737) < 0.01
+    %    theta = x(3);
+    %    set.checkIfErrorVanishes(senseData, theta)
+    %end
+    % ------------------------------- %
     
     % update l(x) and the avoid set.
     set.computeAvoidSet(senseData, senseShape);
@@ -149,9 +153,9 @@ for t=1:T
     % Plot belief obstacle (i.e. everything unsensed) and the value function.
     % 	belief obstacle -- original l(x) which can be found at valueFun(1)
     % 	converged value function -- V_converged which can be found at valueFun(end)
-    valueFunc = plt.plotFuncLevelSet(set.grid, -set.valueFun(:,:,:,end), x(3), visSet, [1,0,0], cmap);
-    %beliefObstacle = plt.plotFuncLevelSet(set.grid, -set.valueFun(:,:,:,1), x(3), visSet, [0,0,0], cmap);
-
+    valueFunc = plt.plotFuncLevelSet(set.grid, set.valueFun(:,:,:,end), x(3), visSet, [1,0,0], cmapHot);
+    %beliefObstacle = plt.plotFuncLevelSet(set.grid, set.lCurr, x(3), visSet, [0,0,0], cmapBone);
+    
 	% Delete old visualizations.
     delete(carVis);
     delete(senseVis);

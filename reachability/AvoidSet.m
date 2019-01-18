@@ -72,11 +72,11 @@ classdef AvoidSet < handle
             
             % Input bounds for dubins car.
             wMax = 1;
-            vrange = [0,1];
+            vrange = [0.5,1];
             
             % --- DISTURBANCE --- %
             dMode = 'min';
-            dMax = [.2, .2, .2];
+            dMax = [0,0,0]; %[.2, .2, .2];
             % ------------------- %
 
             % Define dynamic system.
@@ -88,7 +88,7 @@ classdef AvoidSet < handle
             
             % Time vector.
             t0 = 0;
-            tMax = 100; % compute infinite-horizon solution
+            tMax = 100; % tMax = 100 means compute infinite-horizon solution
             obj.timeDisc = t0:obj.dt:tMax; 
             
             % Control is trying to maximize value function.
@@ -104,6 +104,9 @@ classdef AvoidSet < handle
             % Convergence information
             obj.HJIextraArgs.stopConverge = 1;
             obj.HJIextraArgs.convergeThreshold = .01; % .02 works with warm-starting
+            % since we have a finite compute grid, we can't trust values
+            % near the boundary of grid
+            obj.HJIextraArgs.ignoreBoundary = 1; 
             
             % Built-in plotting information
             %obj.HJIextraArgs.visualize.valueSet = 1;
@@ -163,9 +166,9 @@ classdef AvoidSet < handle
                     
                     % TODO: WARM STARTING DOESN'T WORK RN WHEN I GO AROUND
                     % THE CORNER OF THE OBSTACLE.
-                    obj.HJIextraArgs.discountMode = 'Jaime';
-                    obj.HJIextraArgs.discountFactor = .999;
-                    obj.HJIextraArgs.discountAnneal = 'hard';
+                    %obj.HJIextraArgs.discountMode = 'Jaime';
+                    %obj.HJIextraArgs.discountFactor = .999;
+                    %obj.HJIextraArgs.discountAnneal = 'hard';
                 else
                     data0 = obj.lCurr;
                 end
@@ -173,9 +176,9 @@ classdef AvoidSet < handle
 
             obj.HJIextraArgs.targets = obj.lCurr;
             
+            % We can use min with target regardless of if we are warm
+            % starting. 
             minWith = 'minVWithTarget';
-            %minWith = 'minVOverTime';
-            %minWith = 'zero';
             
             %obj.HJIextraArgs.quiet = true;
             
@@ -197,6 +200,88 @@ classdef AvoidSet < handle
             
             % Union the sensed region with the actual obstacle.
             sensedObsShape = shapeIntersection(sensingShape, obj.lReal);
+        end
+        
+        %% Used to analyze if the error induced by warm-starting vanishes.
+        % Let V(x) be the (converged) value function computed with the old 
+        %   sensing information (i.e. using the old l(x)). 
+        % Let V'(x) be the new value function we are computing based on new
+        %   sensing information (i.e. using the new l'(x))
+        % Typically, we would initialize:
+        %       V'(x,T) = l'(x)
+        % Warm-starting allows us to initialize with:
+        %       V'(x,T) = V(x)
+        % Now we can define the error in the initial value function as:
+        %       k(x) = V(x) / l'(x)
+        % This defines an error set that we would like to ensure goes to
+        % the empty set as t-->infinity. This function performs that check.
+        function checkIfErrorVanishes(obj, senseData, theta)
+            % Construct the new l'(x) from senseData.
+            center = senseData(:,1);
+            radius = senseData(1,2);
+            sensingShape = -shapeCylinder(obj.grid, 3, center, radius);
+
+            % Union the sensed region with the actual obstacle.
+            unionL = shapeUnion(sensingShape, obj.lReal);
+            if isnan(obj.lCurr)
+                lprimex = unionL;
+            else
+                lprimex = shapeIntersection(unionL, obj.lCurr);
+            end
+            
+            % Grab the prior value function.
+            Vx = obj.valueFun(:,:,:,end);
+        
+            % Get the error in the initial value function.
+            kx = shapeDifference(Vx, lprimex); 
+            
+            % visualize that set
+            % contourf plots all values that are ABOVE zero
+            figure(2);
+            extraArgs.LineWidth = 2;
+            [gPlot, dataPlot] = proj(obj.grid, lprimex, [0 0 1], theta);
+            visSetIm(gPlot, dataPlot, [1,0,0], 0, extraArgs);
+            title('lprime(x) sub-zero level set');
+            
+            figure(3);
+            extraArgs.LineWidth = 2;
+            [gPlot, dataPlot] = proj(obj.grid, Vx, [0 0 1], theta);
+            visSetIm(gPlot, dataPlot, [0,0,1], 0, extraArgs);
+            title('V(x) sub-zero level set');
+            
+            figure(4);
+            [gPlot, dataPlot] = proj(obj.grid, kx, [0 0 1], theta);
+            visSetIm(gPlot, dataPlot, [0,1,0], 0, extraArgs);
+            title('k(x) sub-zero level set');
+            
+            % Put grid and dynamic systems into schemeData.
+            scheme.grid = obj.grid;
+            scheme.dynSys = obj.dynSys;
+            scheme.accuracy = 'high'; % Set accuracy.
+            scheme.uMode = 'max';
+            scheme.dMode = 'min';
+
+            % Convergence information
+            extraArgs.stopConverge = 1;
+            extraArgs.convergeThreshold = .01; 
+            extraArgs.visualize.valueSet = 1;
+            %obj.HJIextraArgs.visualize.initialValueSet = 1;
+            extraArgs.visualize.figNum = 5; %set figure number
+            extraArgs.visualize.deleteLastPlot = true; %delete previous plot as you update
+            extraArgs.visualize.sliceLevel = theta;
+            extraArgs.ignoreBoundary = 1;
+            
+            % Time vector.
+            t0 = 0;
+            tMax = 100; 
+            times = t0:obj.dt:tMax; 
+                        
+            % Setup solver parameters.
+            minWith = 'set';
+            
+            % Solve infinite-horizon BRS computation.
+            [dataOut, tau, extraOuts] = ...
+              HJIPDE_solve(kx, times, scheme, minWith, extraArgs);
         end
     end
 end
