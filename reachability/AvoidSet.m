@@ -32,7 +32,7 @@ classdef AvoidSet < handle
     methods
         %% Constructor. 
         % NOTE: Assumes DubinsCar dynamics!
-        function obj = AvoidSet(gridLow, gridUp, lowRealObs, upRealObs, N, dt, warmStart)
+        function obj = AvoidSet(gridLow, gridUp, lowRealObs, upRealObs, obsShape, N, dt, warmStart)
             obj.gridLow = gridLow;  
             obj.gridUp = gridUp;    
             obj.N = N;      
@@ -46,9 +46,15 @@ classdef AvoidSet < handle
             obj.upRealObs = upRealObs;
             
             % Create the 'ground-truth' cost function from obstacle.
-            lowObs = [lowRealObs;-inf];
-            upObs = [upRealObs;inf];
-            obj.lReal = shapeRectangleByCorners(obj.grid,lowObs,upObs);
+            if strcmp(obsShape, 'rectangle')
+                lowObs = [lowRealObs;-inf];
+                upObs = [upRealObs;inf];
+                obj.lReal = shapeRectangleByCorners(obj.grid,lowObs,upObs);
+            else % if circular obstacle
+                center = lowRealObs;
+                radius = upRealObs(1,1);
+                obj.lReal = shapeCylinder(obj.grid, 3, center, radius);
+            end
             
             % Create bitmask representing 'ground-truth' cost function.
             mask = obj.lReal;
@@ -145,6 +151,11 @@ classdef AvoidSet < handle
                 sensingShape = -shapeCylinder(obj.grid, 3, center, radius);
             end
             
+            % --- DEBUGGING --- % 
+            % store old cost function
+            lxOld = obj.lCurr;
+            % ----------------- %
+            
             % Union the sensed region with the actual obstacle.
             unionL = shapeUnion(sensingShape, obj.lReal);
             if isnan(obj.lCurr)
@@ -181,6 +192,13 @@ classdef AvoidSet < handle
             minWith = 'minVWithTarget';
             
             %obj.HJIextraArgs.quiet = true;
+            
+            % --- DEBUGGING --- %
+            times = obj.timeDisc;
+            scheme = obj.schemeData;
+            extra = obj.HJIextraArgs;
+            lx = obj.lCurr;
+            % ----------------- %
             
             % ------------ Compute value function ---------- % 
             [dataOut, tau, extraOuts] = ...

@@ -25,9 +25,17 @@ clear all
 lowEnv = [0;0];
 upEnv = [10;7];
 
-% Setup obstacle.
-lowRealObs = [4;1];
-upRealObs = [7;4];
+% Setup obstacle ['rectangle' or 'circle'].
+obsShape = 'rectangle';
+if strcmp(obsShape, 'rectangle')
+    % Create lower and upper bounds on rectangle.
+    lowRealObs = [4;1];
+    upRealObs = [7;4];
+else
+    % Setup circular obstacle.
+    lowRealObs = [5.5;2.5]; % center of circle
+    upRealObs = [1.5;1.5]; % radius of circle
+end
 
 % Setup lower and upper computation domains and discretization.
 gridLow = [lowEnv;-pi];
@@ -44,7 +52,7 @@ x = [2.0; 2.5; pi/2];
 xgoal = [8.5; 2.5; -pi/2];
 
 %% Create plotter.
-plt = Plotter(lowEnv, upEnv, lowRealObs, upRealObs);
+plt = Plotter(lowEnv, upEnv, lowRealObs, upRealObs, obsShape);
 
 %% Construct sensed region.
 
@@ -57,7 +65,7 @@ plt = Plotter(lowEnv, upEnv, lowRealObs, upRealObs);
 
 % get the sensing radius (circle) 
 senseShape = 'circle';
-senseRad = 1;
+senseRad = 2;
 senseData = [[x(1);x(2)], [senseRad;senseRad]];
 
 %% Compute first safe set based on sensing. 
@@ -67,7 +75,7 @@ senseData = [[x(1);x(2)], [senseRad;senseRad]];
 warmStart = true;
 
 % Setup avoid set object and compute first set.
-set = AvoidSet(gridLow, gridUp, lowRealObs, upRealObs, N, dt, warmStart);
+set = AvoidSet(gridLow, gridUp, lowRealObs, upRealObs, obsShape, N, dt, warmStart);
 set.computeAvoidSet(senseData, senseShape);
 
 %% Compute the first A* plan.
@@ -135,10 +143,11 @@ for t=1:T
     senseData = [[x(1);x(2)],[senseRad;senseRad]];    
     
 	% ---------- DEBUGGING ---------- %
-    %if abs(x(1) - 2.3979) < 0.01 && abs(x(2) - 4.2737) < 0.01
-    %    theta = x(3);
-    %    set.checkIfErrorVanishes(senseData, theta)
-    %end
+    % x = 4.8753, 5.2864, 0.0708
+    if abs(x(1) - 4.8753) < 0.01 && abs(x(2) - 5.2864) < 0.01
+        theta = x(3);
+        %set.checkIfErrorVanishes(senseData, theta)
+    end
     % ------------------------------- %
     
     % update l(x) and the avoid set.

@@ -4,17 +4,21 @@ classdef Plotter
     properties
         lowEnv      % lower (x,y) corner of environment
         upEnv       % upper (x,y) corner of environment
-        lowObs      % lower (x,y) of the rectangular obstacle 
-        upObs       % upper (x,y) of the rectangular obstacle
+        lowObs      % if rectangle: lower left (x,y) point
+                    % if circle: center (x,y) of circle
+        upObs       % if rectangle: upper right (x,y) point
+                    % if circle: radius of circle 
+        obsShape    % shape of the obstacle (rectangle or circle)
     end
     
     methods
         %% Constructor.
-        function obj = Plotter(lowEnv, upEnv, lowObs, upObs)
+        function obj = Plotter(lowEnv, upEnv, lowObs, upObs, obsShape)
             obj.lowEnv = lowEnv;
             obj.upEnv = upEnv;
             obj.lowObs = lowObs;
             obj.upObs = upObs;
+            obj.obsShape = obsShape;
         end
         
         %% Plots the environment with the obstacle.
@@ -22,11 +26,16 @@ classdef Plotter
         %   e - figure handle
         function e = plotEnvironment(obj)
             % draw *actual* obstacle
-            width = obj.upObs(1) - obj.lowObs(1);
-            height = obj.upObs(2) - obj.lowObs(2);
-            obsCoord = [obj.lowObs(1), obj.lowObs(2), width, height];
-            e = rectangle('Position', obsCoord, 'Linewidth', 2.0, 'LineStyle', '--'); 
-            %h = rectangle('Position', obsCoord, 'Linewidth', 0.5, 'FaceColor',[0,0,0]);
+            if strcmp(obj.obsShape, 'rectangle')
+                width = obj.upObs(1) - obj.lowObs(1);
+                height = obj.upObs(2) - obj.lowObs(2);
+                obsCoord = [obj.lowObs(1), obj.lowObs(2), width, height];
+                e = rectangle('Position', obsCoord, 'Linewidth', 2.0, 'LineStyle', '--'); 
+            else
+                center = [obj.lowObs(1), obj.lowObs(2)];
+                rad = obj.upObs(1);
+                e = viscircles(center,rad, 'Color', 'k', 'Linewidth', 2.0, 'LineStyle', '--');
+            end
             
             % Setup the figure axes to represent the entire environment
             xlim([obj.lowEnv(1) obj.upEnv(1)]);
