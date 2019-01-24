@@ -27,6 +27,8 @@ classdef AvoidSet < handle
         HJIextraArgs    % Specifies extra args to HJIPDE_solve()
         warmStart       % (bool) if we want to warm start with prior V(x)
         firstCompute    % (bool) flag to see if this is the first time we have done computation
+        uMode
+        dMode
     end
     
     methods
@@ -81,7 +83,7 @@ classdef AvoidSet < handle
             vrange = [0.5,1];
             
             % --- DISTURBANCE --- %
-            dMode = 'min';
+            obj.dMode = 'min';
             dMax = [0,0,0]; %[.2, .2, .2];
             % ------------------- %
 
@@ -98,18 +100,18 @@ classdef AvoidSet < handle
             obj.timeDisc = t0:obj.dt:tMax; 
             
             % Control is trying to maximize value function.
-            uMode = 'max';
+            obj.uMode = 'max';
             
             % Put grid and dynamic systems into schemeData.
             obj.schemeData.grid = obj.grid;
             obj.schemeData.dynSys = obj.dynSys;
             obj.schemeData.accuracy = 'high'; % Set accuracy.
-            obj.schemeData.uMode = uMode;
-            obj.schemeData.dMode = dMode;
+            obj.schemeData.uMode = obj.uMode;
+            obj.schemeData.dMode = obj.dMode;
 
             % Convergence information
             obj.HJIextraArgs.stopConverge = 1;
-            obj.HJIextraArgs.convergeThreshold = .01; % .02 works with warm-starting
+            obj.HJIextraArgs.convergeThreshold = .02; 
             % since we have a finite compute grid, we can't trust values
             % near the boundary of grid
             obj.HJIextraArgs.ignoreBoundary = 1; 
@@ -168,7 +170,6 @@ classdef AvoidSet < handle
             if obj.firstCompute
                 % First time we are doing computation, set data0 to lcurr
                 data0 = obj.lCurr;
-                obj.firstCompute = false;
             else
                 if obj.warmStart
                     % If we are warm starting, use the old value function
@@ -201,12 +202,60 @@ classdef AvoidSet < handle
             % ----------------- %
             
             % ------------ Compute value function ---------- % 
-            [dataOut, tau, extraOuts] = ...
-              HJIPDE_solve(data0, obj.timeDisc, obj.schemeData, minWith, obj.HJIextraArgs);
+            if obj.firstCompute
+                % normal update
+                [dataOut, tau, extraOuts] = ...
+                  HJIPDE_solve(data0, obj.timeDisc, obj.schemeData, minWith, obj.HJIextraArgs);
+            else
+                % local update
+                updateEpsilon = 0.01;
+                [dataOut, tau, extraOuts] = ...
+                  HJIPDE_solve_local(data0, lxOld, lx, updateEpsilon, times, scheme, minWith, extra);
+              
+                % normal update
+                [dataOut2, tau2, extraOuts2] = ...
+                  HJIPDE_solve(data0, obj.timeDisc, obj.schemeData, minWith, obj.HJIextraArgs);
+              
+                obj.compareSolutions(dataOut(:,:,:,end), dataOut2(:,:,:,end));
+            end
             
             % Update internal variables.
             obj.valueFun = dataOut;
             obj.computeTimes = tau;
+            obj.firstCompute = false;
+        end
+        
+        %% Compare normal and local update solution
+        function compareSolutions(obj, VxNormal, VxLocal)
+            % we want intersection to be empty.
+            intersect = max(VxNormal, -VxLocal);
+            intersect(find(intersect < 0))
+            theta = pi/2;
+            [gPlot, plotData] = proj(obj.grid, intersect, [0 0 1], theta);
+            h = visSetIm(gPlot, plotData, 'k', 0);
+            delete(h);
+        end
+        
+        %% Checks if state x is at the safety boundary. If it is, returns
+        %  the optimal safety control to take. 
+        function [uOpt, onBoundary] = checkAndGetSafetyControl(obj, x)
+            % Grab the value at state x from the most recent converged 
+            % value function.
+            value = eval_u(obj.grid, obj.valueFun(:,:,:,end), x);
+            tol = 0.1;
+            
+            % If the value is close to zero, we are close on the safety
+            % boundary.
+            if value < tol 
+                deriv = computeGradients(obj.grid, obj.valueFun(:,:,:,end));
+                % value of the derivative at that particular state
+                current_deriv = eval_u(obj.grid, deriv, x);
+                uOpt = obj.dynSys.optCtrl(x, current_deriv, obj.uMode); 
+                onBoundary = true;
+            else
+                uOpt = zeros(2, 1);
+                onBoundary = false;
+            end
         end
         
         %% Get shape that represents sensed part of obstacle.

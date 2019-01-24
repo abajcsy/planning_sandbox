@@ -115,7 +115,9 @@ classdef Plotter
                 lowy = x(2)-senseRad;
                 s = rectangle('Position',[lowx,lowy,senseRad*2,senseRad*2], 'EdgeColor', [0,0,1,0.5], 'LineWidth', 2);
             else
-                s = viscircles([x(1),x(2)],senseRad, 'EdgeColor', [0,0,1,0.5], 'LineWidth', 2);
+                %s = viscircles([x(1),x(2)],senseRad, 'Color', [0,0.2,1,0.5], 'LineWidth', 2);
+                pos = [x(1)-senseRad x(2)-senseRad senseRad*2 senseRad*2];
+                s = rectangle('Position', pos,'Curvature',[1,1], 'FaceColor',[0,0.2,1,0.3], 'EdgeColor', [0,0.2,1,0]);
             end
         end
         

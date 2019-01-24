@@ -65,7 +65,7 @@ plt = Plotter(lowEnv, upEnv, lowRealObs, upRealObs, obsShape);
 
 % get the sensing radius (circle) 
 senseShape = 'circle';
-senseRad = 2;
+senseRad = 1.5;
 senseData = [[x(1);x(2)], [senseRad;senseRad]];
 
 %% Compute first safe set based on sensing. 
@@ -134,6 +134,13 @@ T = 200;
 for t=1:T
     % Get the current control.
     u = getControl(t);
+    
+    % Check if we are on boundary of safe set. If we are, apply safety 
+    % controller instead. 
+    %[uOpt, onBoundary] = set.checkAndGetSafetyControl(x);
+    %if onBoundary
+    %    u = uOpt;
+    %end
 
     % Apply control to dynamics.
     dx = dynamics(set.dynSys,t,x,u);
