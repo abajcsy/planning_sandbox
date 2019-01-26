@@ -91,6 +91,9 @@ classdef Plotter
         %   c   - handle for figure
         function c = plotCar(obj, x)
             c = plot(x(1), x(2), 'ko','MarkerSize', 5, 'MarkerEdgeColor', 'k', 'MarkerFaceColor', 'k');
+            
+            
+            
             % Plot heading.
             center = x(1:2);
             % Rotation matrix.

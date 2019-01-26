@@ -37,7 +37,7 @@ classdef AvoidSet < handle
         %% Constructor. 
         % NOTE: Assumes DubinsCar dynamics!
         function obj = AvoidSet(gridLow, gridUp, lowRealObs, upRealObs, ...
-                obsShape, N, dt, warmStart, saveValueFuns)
+                obsShape, N, dt, warmStart, saveValueFuns, x_init)
             obj.gridLow = gridLow;  
             obj.gridUp = gridUp;    
             obj.N = N;      
@@ -90,12 +90,9 @@ classdef AvoidSet < handle
             dMax = [0,0,0]; %[.2, .2, .2];
             % ------------------- %
 
-            % Define dynamic system.
-            % NOTE: init condition doesn't matter for computation.
-            xinit = [2.0, 2.5, 0.0]; 
-            
+            % Define dynamic system.            
             % Create dubins car where u = [v, w]
-            obj.dynSys = Plane(xinit, wMax, vrange, dMax);
+            obj.dynSys = Plane(x_init, wMax, vrange, dMax);
             
             % Time vector.
             t0 = 0;
@@ -113,8 +110,8 @@ classdef AvoidSet < handle
             obj.schemeData.dMode = obj.dMode;
 
             % Convergence information
-            obj.HJIextraArgs.stopConverge = 1;
-            obj.HJIextraArgs.convergeThreshold = .02;  %NOT USED IN LOCAL UPDATE
+            obj.HJIextraArgs.stopConverge = 0;
+            % obj.HJIextraArgs.convergeThreshold = .02;  %NOT USED IN LOCAL UPDATE
             % since we have a finite compute grid, we can't trust values
             % near the boundary of grid
             obj.HJIextraArgs.ignoreBoundary = 1; 
@@ -216,7 +213,7 @@ classdef AvoidSet < handle
                 %  HJIPDE_solve(data0, obj.timeDisc, obj.schemeData, minWith, obj.HJIextraArgs);
             else
                 % local update
-                updateEpsilon = 0.02;
+                updateEpsilon = 0.01;
                 [dataOut, tau, extraOuts] = ...
                   HJIPDE_solve_local(data0, lxOld, obj.lCurr, ...
                     updateEpsilon, obj.timeDisc, obj.schemeData, minWith, obj.HJIextraArgs);

@@ -44,7 +44,7 @@ N = [31;31;21];
 dt = 0.05;
 
 % Initial condition.
-x = [2.0; 2.5; pi/2];
+x_init = [2.0; 2.5; pi/2];
 
 % Goal position.
 xgoal = [8.5; 2.5; -pi/2];
@@ -57,7 +57,7 @@ plt = Plotter(lowEnv, upEnv, lowRealObs, upRealObs, obsShape);
 % get the sensing radius (circle) 
 senseShape = 'circle';
 senseRad = 1.5;
-senseData = [[x(1);x(2)], [senseRad;senseRad]];
+senseData = [[x_init(1);x_init(2)], [senseRad;senseRad]];
 
 %% Compute first safe set based on sensing. 
 
@@ -69,7 +69,7 @@ saveValueFuns = false;
 
 % Setup avoid set object and compute first set.
 currTime = 1;
-setObj = AvoidSet(gridLow, gridUp, lowRealObs, upRealObs, obsShape, N, dt, warmStart, saveValueFuns);
+setObj = AvoidSet(gridLow, gridUp, lowRealObs, upRealObs, obsShape, N, dt, warmStart, saveValueFuns, x_init);
 setObj.computeAvoidSet(senseData, senseShape, currTime);
 
 %% Plot initial conditions, sensing, and safe set.
@@ -80,13 +80,13 @@ hold on
 visSet = true;
 cmapHot = 'hot';
 cmapBone = 'bone';
-valueFunc = plt.plotFuncLevelSet(setObj.grid, setObj.valueFun(:,:,:,end), x(3), visSet, [1,0,0], cmapHot);
+valueFunc = plt.plotFuncLevelSet(setObj.grid, setObj.valueFun(:,:,:,end), x_init(3), visSet, [1,0,0], cmapHot);
 %beliefObstacle = plt.plotFuncLevelSet(setObj.grid, setObj.lCurr, x(3), visSet, [0.5,0.5,0.5], cmapBone);
 
 % Plot environment, car, and sensing.
 envHandle = plt.plotEnvironment();
-senseVis = plt.plotSensing(x, senseRad, senseShape);
-carVis = plt.plotCar(x);
+senseVis = plt.plotSensing(x_init, senseRad, senseShape);
+carVis = plt.plotCar(x_init);
 
 % --- VIDEO MAKING --- %
 %plt.plotSetToCostFun(setObj.grid, setObj.lCurr, x(3), [0.5,0.5,0.5]);
@@ -95,6 +95,7 @@ carVis = plt.plotCar(x);
 
 % Total simulation timesteps.
 T = 200; 
+x = setObj.dynSys.x;
 
 for t=1:T
     % Get the current control.
@@ -102,14 +103,16 @@ for t=1:T
     
     % Check if we are on boundary of safe set. If we are, apply safety 
     % controller instead. 
-    %[uOpt, onBoundary] = setObj.checkAndGetSafetyControl(x);
-    %if onBoundary
-    %    u = uOpt;
-    %end
+    [uOpt, onBoundary] = setObj.checkAndGetSafetyControl(x);
+    if onBoundary
+       u = uOpt;
+    end
 
     % Apply control to dynamics.
-    dx = dynamics(setObj.dynSys,t,x,u);
-    x = x + dx*dt;
+    setObj.dynSys.updateState(u, dt, setObj.dynSys.x);
+    x = setObj.dynSys.x;
+%     dx = dynamics(setObj.dynSys,t,x,u);
+%     x = x + dx*dt;
     
     % get the sensing radius (circle)
     senseData = [[x(1);x(2)],[senseRad;senseRad]];    
@@ -154,30 +157,4 @@ if saveValueFuns
     % Save out the sequence of value functions.
     valueFunCellArr = setObj.valueFunCellArr; 
     save('groundTruthValueFuns.mat', 'valueFunCellArr');
-end
-
-%% Returns control to apply to car at a particular time.
-function u = getControl(t)
-%     if t >= 1 && t < 35
-%         u = [1.0,-1.0];
-%     elseif t >= 35 && t < 40
-%         u = [1.0,0.0];
-%     else
-%         u = [1.0,0.0];
-%     end
-    if t >= 1 && t < 20
-        u = [1.0, 0.0];
-    elseif t >= 20 && t < 40
-        u = [1.0,-1.0];
-    elseif t >= 40 && t < 50
-        u = [1.0,1.0];
-    elseif t >=50 && t < 70
-        u = [1.0,-1.0];
-    elseif t >= 70 && t < 120
-        u = [1.0,0.0];
-    elseif t >= 120 && t < 150
-        u = [1.0,-1.0];
-    else
-        u = [1.0,0.0];
-    end
 end

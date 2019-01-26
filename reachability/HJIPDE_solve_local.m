@@ -954,13 +954,6 @@ for i = istart:length(tau)
         end
     end
     
-    
-%     % ---- If Q is empty, we need to exit the outer for-loop as well! --- %
-%     if isempty(Q)
-%         stopConverge = true;
-%     end
-%     % ------------------------------------------------------------------- %
-    
     % Reshape value function
     data_i = reshape(y, g.shape);
     if keepLast
@@ -1012,6 +1005,19 @@ for i = istart:length(tau)
             end
         end
     
+    % ---- If Q is empty, we need to exit the outer for-loop as well! --- %
+    if isempty(Q)
+        extraOuts.stoptau = tau(i);
+        tau(i+1:end) = [];
+
+        if ~lowMemory && ~keepLast
+            data(clns{:}, i+1:size(data, gDim+1)) = [];
+        end
+        break
+    end
+    % ------------------------------------------------------------------- %
+        
+        
     %% If commanded, stop the reachable set computation once it contains
     % the initial state.
     if isfield(extraArgs, 'stopInit')
