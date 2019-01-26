@@ -29,12 +29,15 @@ classdef AvoidSet < handle
         firstCompute    % (bool) flag to see if this is the first time we have done computation
         uMode
         dMode
+        saveValueFuns 
+        valueFunCellArr
     end
     
     methods
         %% Constructor. 
         % NOTE: Assumes DubinsCar dynamics!
-        function obj = AvoidSet(gridLow, gridUp, lowRealObs, upRealObs, obsShape, N, dt, warmStart)
+        function obj = AvoidSet(gridLow, gridUp, lowRealObs, upRealObs, ...
+                obsShape, N, dt, warmStart, saveValueFuns)
             obj.gridLow = gridLow;  
             obj.gridUp = gridUp;    
             obj.N = N;      
@@ -111,7 +114,7 @@ classdef AvoidSet < handle
 
             % Convergence information
             obj.HJIextraArgs.stopConverge = 1;
-            obj.HJIextraArgs.convergeThreshold = .02; 
+            obj.HJIextraArgs.convergeThreshold = .02;  %NOT USED IN LOCAL UPDATE
             % since we have a finite compute grid, we can't trust values
             % near the boundary of grid
             obj.HJIextraArgs.ignoreBoundary = 1; 
@@ -121,6 +124,15 @@ classdef AvoidSet < handle
             %obj.HJIextraArgs.visualize.initialValueSet = 1;
             %obj.HJIextraArgs.visualize.figNum = 1; %set figure number
             %obj.HJIextraArgs.visualize.deleteLastPlot = true; %delete previous plot as you update
+            
+            % Save out sequence of value functions as system moves through
+            % space. 
+            obj.saveValueFuns = saveValueFuns;
+            obj.valueFunCellArr = [];
+            
+            % Grab the ground truth value functions over time
+            load('groundTruthValueFuns.mat', 'valueFunCellArr');
+            obj.valueFunCellArr = valueFunCellArr;
         end
         
         %% Computes avoid set. 
@@ -131,9 +143,10 @@ classdef AvoidSet < handle
         %                        if circle sensing region, 
         %                        (x,y) coords of center and radius
         %   senseShape [string] - either 'rectangle' or 'circle'
+        %   currTime [int]      - current timestep (in simulation) 
         % Outputs:
         %   dataOut             - infinite-horizon (converged) value function 
-        function dataOut = computeAvoidSet(obj, senseData, senseShape)
+        function dataOut = computeAvoidSet(obj, senseData, senseShape, currTime)
             
             % ---------- START CONSTRUCT l(x) ---------- %
             
@@ -175,12 +188,6 @@ classdef AvoidSet < handle
                     % If we are warm starting, use the old value function
                     % as initial V(x) and then the true/correct l(x) in targets
                     data0 = obj.valueFun(:,:,:,end);
-                    
-                    % TODO: WARM STARTING DOESN'T WORK RN WHEN I GO AROUND
-                    % THE CORNER OF THE OBSTACLE.
-                    %obj.HJIextraArgs.discountMode = 'Jaime';
-                    %obj.HJIextraArgs.discountFactor = .999;
-                    %obj.HJIextraArgs.discountAnneal = 'hard';
                 else
                     data0 = obj.lCurr;
                 end
@@ -192,31 +199,38 @@ classdef AvoidSet < handle
             % starting. 
             minWith = 'minVWithTarget';
             
-            %obj.HJIextraArgs.quiet = true;
-            
             % --- DEBUGGING --- %
-            times = obj.timeDisc;
-            scheme = obj.schemeData;
-            extra = obj.HJIextraArgs;
-            lx = obj.lCurr;
+            %times = obj.timeDisc;
+            %scheme = obj.schemeData;
+            %extra = obj.HJIextraArgs;
+            %lx = obj.lCurr;
             % ----------------- %
             
             % ------------ Compute value function ---------- % 
-            if obj.firstCompute
+            if obj.firstCompute 
+                dataOut = obj.valueFunCellArr{1};
+                tau = obj.timeDisc; % this is incorrect but doesn't matter first run...
+                
                 % normal update
-                [dataOut, tau, extraOuts] = ...
-                  HJIPDE_solve(data0, obj.timeDisc, obj.schemeData, minWith, obj.HJIextraArgs);
+                %[dataOut, tau, extraOuts] = ...
+                %  HJIPDE_solve(data0, obj.timeDisc, obj.schemeData, minWith, obj.HJIextraArgs);
             else
                 % local update
-                updateEpsilon = 0.01;
+                updateEpsilon = 0.02;
                 [dataOut, tau, extraOuts] = ...
-                  HJIPDE_solve_local(data0, lxOld, lx, updateEpsilon, times, scheme, minWith, extra);
+                  HJIPDE_solve_local(data0, lxOld, obj.lCurr, ...
+                    updateEpsilon, obj.timeDisc, obj.schemeData, minWith, obj.HJIextraArgs);
+                
+                % Grab the ground truth update at same timestep for comparison.
+                groundTruth = obj.valueFunCellArr{currTime};
               
-                % normal update
-                [dataOut2, tau2, extraOuts2] = ...
-                  HJIPDE_solve(data0, obj.timeDisc, obj.schemeData, minWith, obj.HJIextraArgs);
-              
-                obj.compareSolutions(dataOut(:,:,:,end), dataOut2(:,:,:,end));
+                % Compare the local update to the ground-truth.
+                obj.compareSolutions(dataOut(:,:,:,end), groundTruth(:,:,:,end));
+            end
+            
+            % --- save out computed value function --- %
+            if obj.saveValueFuns 
+                obj.valueFunCellArr{end+1} = dataOut;
             end
             
             % Update internal variables.
@@ -229,7 +243,7 @@ classdef AvoidSet < handle
         function compareSolutions(obj, VxNormal, VxLocal)
             % we want intersection to be empty.
             intersect = max(VxNormal, -VxLocal);
-            intersect(find(intersect < 0))
+            %intersect(find(intersect < 0))
             theta = pi/2;
             [gPlot, plotData] = proj(obj.grid, intersect, [0 0 1], theta);
             h = visSetIm(gPlot, plotData, 'k', 0);

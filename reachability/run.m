@@ -6,15 +6,13 @@
 % - [done] compute solution IF YOU KNEW ENTIRE ENVIRONMENT *beforehand*
 % - [done] plot the final V(x) that we got after execution is done
 % - [done] put in discounting (?) --> THIS DOESN'T CONVERGE
+% - [done] put in warm-starting based on updated sensor measurements (?)
 % - [done] look at Kene's temporal differencing work --> this may be better
 %   than the warm-starting ...
 
 % TODO:
 % - implement planner and optimal controller scheme
 % - what if we knew some prior info about environment and other stuff we didnt?
-% - put in warm-starting based on updated sensor measurements (?)
-% - look at approximate reachability techniques (Murat, etc.) -- this
-%   doesn't give us optimal control!
 
 % Clear old figure plotting and variables.
 clf 
@@ -56,13 +54,6 @@ plt = Plotter(lowEnv, upEnv, lowRealObs, upRealObs, obsShape);
 
 %% Construct sensed region.
 
-% get the sensing radius (rectangle)
-% senseShape = 'rectangle';
-% senseRad = 1.5;
-% lowSense = [x(1)-senseRad; x(2)-senseRad];
-% upSense = [x(1)+senseRad; x(2)+senseRad];
-% senseData = [lowSense, upSense];
-
 % get the sensing radius (circle) 
 senseShape = 'circle';
 senseRad = 1.5;
@@ -70,44 +61,16 @@ senseData = [[x(1);x(2)], [senseRad;senseRad]];
 
 %% Compute first safe set based on sensing. 
 
-% TODO: WARM STARTING DOESN'T WORK RN.
 % If we want to warm start with prior value function.
 warmStart = true;
 
+% If we want to save the sequence of value functions.
+saveValueFuns = false;
+
 % Setup avoid set object and compute first set.
-set = AvoidSet(gridLow, gridUp, lowRealObs, upRealObs, obsShape, N, dt, warmStart);
-set.computeAvoidSet(senseData, senseShape);
-
-%% Compute the first A* plan.
-
-% % Setup discrete world size.
-% simWidth = N(1);
-% simHeight = N(2);
-% 
-% % Create planner.
-% astar = AStar(lowEnv, upEnv, simWidth, simHeight);
-% 
-% % Get the sensed obstacle region and update.
-% % TODO THE GETSENSEDOBS IS WRONG!
-% senseData = [x(1:2), [senseRad;senseRad]];
-% sensedObsShape = set.getSensedObs(senseData);
-% astar.updateObs(sensedObsShape);
-% 
-% hold on
-% xlim([0,31]);
-% ylim([0,31]);
-% plt.plotObsShape(astar.obsShape);
-% 
-% % Start and goal (in grid env).
-% simStart = astar.realToSim(x);
-% simGoal = astar.realToSim(xgoal);
-% 
-% scatter(simStart(1), simStart(2));
-% scatter(simGoal(1), simGoal(2));
-% 
-% % Generate A* plan from start to goal.
-% waypts = astar.plan(simStart, simGoal);
-% plt.plotWaypts(waypts, simWidth, simHeight);
+currTime = 1;
+setObj = AvoidSet(gridLow, gridUp, lowRealObs, upRealObs, obsShape, N, dt, warmStart, saveValueFuns);
+setObj.computeAvoidSet(senseData, senseShape, currTime);
 
 %% Plot initial conditions, sensing, and safe set.
 
@@ -117,14 +80,16 @@ hold on
 visSet = true;
 cmapHot = 'hot';
 cmapBone = 'bone';
-%beliefObstacle = plt.plotFuncLevelSet(set.grid, set.lCurr, x(3), visSet, [0.5,0.5,0.5], cmapBone);
-valueFunc = plt.plotFuncLevelSet(set.grid, set.valueFun(:,:,:,end), x(3), visSet, [1,0,0], cmapHot);
+valueFunc = plt.plotFuncLevelSet(setObj.grid, setObj.valueFun(:,:,:,end), x(3), visSet, [1,0,0], cmapHot);
+%beliefObstacle = plt.plotFuncLevelSet(setObj.grid, setObj.lCurr, x(3), visSet, [0.5,0.5,0.5], cmapBone);
 
 % Plot environment, car, and sensing.
 envHandle = plt.plotEnvironment();
-carVis = plt.plotCar(x);
 senseVis = plt.plotSensing(x, senseRad, senseShape);
+carVis = plt.plotCar(x);
 
+% --- VIDEO MAKING --- %
+%plt.plotSetToCostFun(setObj.grid, setObj.lCurr, x(3), [0.5,0.5,0.5]);
 
 %% Simulate dubins car moving around environment and the safe set changing
 
@@ -137,31 +102,30 @@ for t=1:T
     
     % Check if we are on boundary of safe set. If we are, apply safety 
     % controller instead. 
-    %[uOpt, onBoundary] = set.checkAndGetSafetyControl(x);
+    %[uOpt, onBoundary] = setObj.checkAndGetSafetyControl(x);
     %if onBoundary
     %    u = uOpt;
     %end
 
     % Apply control to dynamics.
-    dx = dynamics(set.dynSys,t,x,u);
+    dx = dynamics(setObj.dynSys,t,x,u);
     x = x + dx*dt;
     
     % get the sensing radius (circle)
     senseData = [[x(1);x(2)],[senseRad;senseRad]];    
     
-	% ---------- DEBUGGING ---------- %
+	% -------------------- DEBUGGING -------------------- %
     % x = 4.8753, 5.2864, 0.0708
-    if abs(x(1) - 4.8753) < 0.01 && abs(x(2) - 5.2864) < 0.01
-        theta = x(3);
-        %set.checkIfErrorVanishes(senseData, theta)
-    end
-    % ------------------------------- %
+    %if abs(x(1) - 4.8753) < 0.01 && abs(x(2) - 5.2864) < 0.01
+    %    theta = x(3);
+    %    setObj.checkIfErrorVanishes(senseData, theta)
+    %end
+    % --------------------------------------------------- %
     
     % update l(x) and the avoid set.
-    set.computeAvoidSet(senseData, senseShape);
+    setObj.computeAvoidSet(senseData, senseShape, t+1);
     
     % -------------- Plotting -------------- %
-
     % Delete old visualizations.
     delete(valueFunc);
     %delete(beliefObstacle);
@@ -169,21 +133,27 @@ for t=1:T
     % Plot belief obstacle (i.e. everything unsensed) and the value function.
     % 	belief obstacle -- original l(x) which can be found at valueFun(1)
     % 	converged value function -- V_converged which can be found at valueFun(end)
-    valueFunc = plt.plotFuncLevelSet(set.grid, set.valueFun(:,:,:,end), x(3), visSet, [1,0,0], cmapHot);
-    %beliefObstacle = plt.plotFuncLevelSet(set.grid, set.lCurr, x(3), visSet, [0,0,0], cmapBone);
+    valueFunc = plt.plotFuncLevelSet(setObj.grid, setObj.valueFun(:,:,:,end), x(3), visSet, [1,0,0], cmapHot);
+    %beliefObstacle = plt.plotFuncLevelSet(setObj.grid, setObj.lCurr, x(3), visSet, [0,0,0], cmapBone);
     
 	% Delete old visualizations.
     delete(carVis);
     delete(senseVis);
     
     % Plot the state of the car (point), environment, and sensing.
+	senseVis = plt.plotSensing(x, senseRad, senseShape);
     carVis = plt.plotCar(x);
     envHandle = plt.plotEnvironment();
-	senseVis = plt.plotSensing(x, senseRad, senseShape);
     % ----------------------------------- %
     
     % Pause based on timestep.
     pause(dt);
+end
+
+if saveValueFuns 
+    % Save out the sequence of value functions.
+    valueFunCellArr = setObj.valueFunCellArr; 
+    save('groundTruthValueFuns.mat', 'valueFunCellArr');
 end
 
 %% Returns control to apply to car at a particular time.

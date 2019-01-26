@@ -41,8 +41,8 @@ classdef Plotter
             xlim([obj.lowEnv(1) obj.upEnv(1)]);
             ylim([obj.lowEnv(2) obj.upEnv(2)]);
             
-            xlabel('x1');
-            ylabel('x2');
+            xlabel('x');
+            ylabel('y');
             set(gca,'TickLength',[0 0]);
             box on
         end
@@ -78,8 +78,8 @@ classdef Plotter
             end
 
             colormap(flipud(cmap));
-            xlabel('x1');
-            ylabel('x2');
+            xlabel('x');
+            ylabel('y');
             grid off
             set(gca,'TickLength',[0 0]);
         end
@@ -101,6 +101,10 @@ classdef Plotter
             hptRot = R*hpt + center;
             p2 = plot([center(1) hptRot(1)], [center(2) hptRot(2)], 'LineWidth', 1.5);
             p2.Color(4) = 1.0;
+            
+            % Setup the figure axes to represent the entire environment
+            xlim([obj.lowEnv(1) obj.upEnv(1)]);
+            ylim([obj.lowEnv(2) obj.upEnv(2)]);
         end
         
         %% Plots sensing radius centered around car position (x)
@@ -119,6 +123,9 @@ classdef Plotter
                 pos = [x(1)-senseRad x(2)-senseRad senseRad*2 senseRad*2];
                 s = rectangle('Position', pos,'Curvature',[1,1], 'FaceColor',[0,0.2,1,0.3], 'EdgeColor', [0,0.2,1,0]);
             end
+            % Setup the figure axes to represent the entire environment
+            xlim([obj.lowEnv(1) obj.upEnv(1)]);
+            ylim([obj.lowEnv(2) obj.upEnv(2)]);
         end
         
         %% Plots waypoints.
@@ -148,6 +155,78 @@ classdef Plotter
                    end
                end
            end
+        end
+        
+        %% Plots how a set becomes a cost function function.
+        function plotSetToCostFun(obj, g, func, theta, edgeColor)
+             % Grab slice at theta.
+            [gPlot, dataPlot] = proj(g, func, [0 0 1], theta);
+            extraArgs.LineWidth = 2;
+
+            % Visualize final set.
+            % NOTE: plot -data because by default contourf plots all values
+            % that are ABOVE zero, but inside our obstacle we have values
+            % BELOW zero.
+            h = visSetIm(gPlot, -dataPlot, edgeColor, 0, extraArgs);
+            zlim([-3,3]);
+            
+            
+            % Set up video
+            path = '/home/abajcsy/hybrid_ws/src/planning_sandbox/imgs/lab_mtg_imgs/';
+            video_filename = [path datestr(now,'YYYYMMDD_hhmmss') '.avi'];
+            vout = VideoWriter(video_filename,'Uncompressed AVI');
+
+            % Open video for writing
+            try
+                vout.open;
+            catch
+                error('cannot open file for writing')
+            end
+
+            % Grab initial frame, write to video
+            set(gcf, 'color', 'w');
+            current_frame = getframe(gcf); %gca does just the plot
+            writeVideo(vout,current_frame);
+            
+            % Start from viewing top-down 2D set view.
+            az = 0;
+            el = 90; 
+            view(az, el);
+            % we want to get to view(-20, 10)
+            while az > -20 || el > 10 
+                if az <= -20
+                    az = -20;
+                else
+                    az = az - 2;
+                end
+                if el <= 10
+                    el = 20;
+                else
+                     el = el - 2;
+                end
+                view(az, el);
+                %pause(0.05);
+                current_frame = getframe(gcf); %gca does just the plot
+                writeVideo(vout,current_frame);
+            end
+            
+            % After rotating to 3D, plot the corresponding cost function in
+            % 3D
+            alpha = 0.5;
+            visFuncIm(gPlot, dataPlot, edgeColor, alpha);
+            zlabel('l(x,y,\theta=\pi/2)');
+            current_frame = getframe(gcf); %gca does just the plot
+            writeVideo(vout,current_frame);
+            
+            i = 0;
+            while i < 100
+                current_frame = getframe(gcf); %gca does just the plot
+                writeVideo(vout,current_frame);
+                i = i +1;
+            end
+                
+            % Close video
+            vout.close
         end
     end
 end
